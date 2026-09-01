@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBRO
+}
+
+enum StatusOS {
+  ABERTA
+  EM_ANDAMENTO
+  AGUARDANDO_RESPOSTA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum PrioridadeOS {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+model Usuario {
+  id                String         @id @default(cuid())
+  nome              String
+  email             String         @unique
+  senha             String
+  fotoUrl           String?
+  role              UserRole       @default(MEMBRO)
+  departamentoId    String
+  departamento      Departamento   @relation(fields: [departamentoId], references: [id], onDelete: Restrict)
+  ordensSolicitadas OrdemServico[] @relation("SolicitanteOS")
+  ordensAtendidas   OrdemServico[] @relation("ResponsavelOS")
+  relatoriosGerados Relatorio[]
+  criadoEm          DateTime       @default(now())
+  atualizadoEm      DateTime       @updatedAt
+}
+
+model Departamento {
+  id            String         @id @default(cuid())
+  nome          String         @unique
+  ativo         Boolean        @default(true)
+  usuarios      Usuario[]
+  ordensOrigem  OrdemServico[] @relation("OrigemDepartamento")
+  ordensDestino OrdemServico[] @relation("DestinoDepartamento")
+  relatorios    Relatorio[]
+  criadoEm      DateTime       @default(now())
+  atualizadoEm  DateTime       @updatedAt
+}
+
+model OrdemServico {
+  id                    String        @id @default(cuid())
+  codigo                String        @unique
+  titulo                String
+  descricao             String
+  status                StatusOS      @default(ABERTA)
+  prioridade            PrioridadeOS  @default(MEDIA)
+  solicitanteId         String
+  solicitante           Usuario       @relation("SolicitanteOS", fields: [solicitanteId], references: [id], onDelete: Cascade)
+  responsavelId         String?
+  responsavel           Usuario?      @relation("ResponsavelOS", fields: [responsavelId], references: [id], onDelete: SetNull)
+  departamentoOrigemId  String
+  departamentoOrigem    Departamento  @relation("OrigemDepartamento", fields: [departamentoOrigemId], references: [id], onDelete: Cascade)
+  departamentoDestinoId String
+  departamentoDestino   Departamento  @relation("DestinoDepartamento", fields: [departamentoDestinoId], references: [id], onDelete: Cascade)
+  criadoEm              DateTime      @default(now())
+  atualizadoEm          DateTime      @updatedAt
+}
+
+model Relatorio {
+  id             String        @id @default(cuid())
+  codigo         String        @unique
+  titulo         String
+  tipo           String
+  departamentoId String?
+  departamento   Departamento? @relation(fields: [departamentoId], references: [id], onDelete: SetNull)
+  autorId        String
+  autor          Usuario       @relation(fields: [autorId], references: [id], onDelete: Cascade)
+  totalOS        Int           @default(0)
+  abertas        Int           @default(0)
+  emAndamento    Int           @default(0)
+  concluidas     Int           @default(0)
+  canceladas     Int           @default(0)
+  dadosJson      String?
+  criadoEm       DateTime      @default(now())
+}
