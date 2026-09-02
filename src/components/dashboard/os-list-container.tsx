@@ -30,6 +30,8 @@ import {
   FileText,
   Hash,
   Lock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 
 interface OsListContainerProps {
@@ -56,6 +58,8 @@ export function OsListContainer({
   const [isPending, startTransition] = useTransition()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [detailOS, setDetailOS] = useState<OrdemServicoDTO | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 9
 
   // Lista de responsáveis únicos para filtro
   const uniqueTechnicians = useMemo(() => {
@@ -119,6 +123,23 @@ export function OsListContainer({
       return matchesSearch && matchesStatus && matchesPriority && matchesDepartment && matchesTech
     })
   }, [ordens, searchTerm, selectedStatus, selectedPriority, selectedDepartment, selectedTechnician])
+
+  // Paginação da listagem
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedOrders = useMemo(() => {
+    const start = (safePage - 1) * itemsPerPage
+    return filteredOrders.slice(start, start + itemsPerPage)
+  }, [filteredOrders, safePage])
+
+  // Volta para a primeira página sempre que os filtros mudam
+  // (padrão do React de ajustar estado durante o render, sem useEffect)
+  const filterKey = `${searchTerm}|${selectedStatus}|${selectedPriority}|${selectedDepartment}|${selectedTechnician}`
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setCurrentPage(1)
+  }
 
   const handleStatusChange = (id: string, newStatus: StatusOS) => {
     startTransition(async () => {
@@ -370,7 +391,7 @@ export function OsListContainer({
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/60 text-xs sm:text-sm">
-                {filteredOrders.map((os) => {
+                {paginatedOrders.map((os) => {
                   const statusEdit = getStatusEditInfo(os)
                   return (
                     <tr
@@ -522,7 +543,7 @@ export function OsListContainer({
       ) : (
         /* VISUALIZAÇÃO EM CARDS / GRID */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredOrders.map((os) => {
+          {paginatedOrders.map((os) => {
             const statusEdit = getStatusEditInfo(os)
             return (
             <div
@@ -640,6 +661,40 @@ export function OsListContainer({
             </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PAGINAÇÃO */}
+      {/* ========================================================================= */}
+      {filteredOrders.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <span>
+            Mostrando <strong>{paginatedOrders.length}</strong> de <strong>{filteredOrders.length}</strong> ordens de serviço
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              title="Página anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300 px-2">
+              Página {safePage} de {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              title="Próxima página"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

@@ -14,6 +14,8 @@ import {
   Loader2,
   User,
   UserCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 
 interface RelatorioProdutividadeProps {
@@ -33,11 +35,30 @@ export function RelatorioProdutividade({
 
   const [relatorio, setRelatorio] = useState<RelatorioProdutividadeDTO | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [itensPage, setItensPage] = useState(1)
+  const itensPorPagina = 8
 
   // Filtra apenas membros do departamento do usuário logado
   const membrosDoSetor = useMemo(() => {
     return todosUsuarios.filter((u) => u.departamentoId === currentUser.departamentoId)
   }, [todosUsuarios, currentUser.departamentoId])
+
+  // Paginação da tabela de produtividade por prestador
+  const itens = useMemo(() => relatorio?.itens ?? [], [relatorio])
+  const totalItensPages = Math.max(1, Math.ceil(itens.length / itensPorPagina))
+  const safeItensPage = Math.min(itensPage, totalItensPages)
+  const itensPaginados = useMemo(() => {
+    const start = (safeItensPage - 1) * itensPorPagina
+    return itens.slice(start, start + itensPorPagina)
+  }, [itens, safeItensPage])
+
+  // Volta à primeira página quando um novo relatório é carregado
+  // (padrão do React de ajustar estado durante o render, sem useEffect)
+  const [prevRelatorio, setPrevRelatorio] = useState(relatorio)
+  if (relatorio !== prevRelatorio) {
+    setPrevRelatorio(relatorio)
+    setItensPage(1)
+  }
 
   // Carrega relatório filtrado estritamente para o setor do usuário logado
   const carregarRelatorio = useCallback(() => {
@@ -457,7 +478,7 @@ export function RelatorioProdutividade({
                     </td>
                   </tr>
                 ) : (
-                  relatorio.itens.map((item, idx) => (
+                  itensPaginados.map((item, idx) => (
                     <tr
                       key={`item-${item.responsavelId || idx}`}
                       className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors"
@@ -485,6 +506,38 @@ export function RelatorioProdutividade({
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Paginação da tabela de produtividade */}
+        {relatorio && itens.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <span>
+              Mostrando <strong>{itensPaginados.length}</strong> de <strong>{itens.length}</strong> prestadores
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setItensPage((p) => Math.max(1, p - 1))}
+                disabled={safeItensPage <= 1}
+                className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                title="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300 px-2">
+                Página {safeItensPage} de {totalItensPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setItensPage((p) => Math.min(totalItensPages, p + 1))}
+                disabled={safeItensPage >= totalItensPages}
+                className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                title="Próxima página"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>

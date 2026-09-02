@@ -153,6 +153,10 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 ### Fase 12: Controle de Quem Altera o Status da OS (Concluída)
 - [x] **Só o setor de destino altera o status:** O seletor de status fica **bloqueado (com cadeado e tooltip)** para o dono/solicitante — apenas colaboradores do setor de destino (`departamentoDestinoId`) podem alterar. Além disso, **OS concluída trava o status para todos**. Aplicado na tabela e nos cards (`src/components/dashboard/os-list-container.tsx`, que recebe `currentUserDeptId` via `src/app/page.tsx`). Reforço no servidor: `atualizarStatusOS` (`src/app/actions.ts`) recusa a alteração se o usuário não for do setor de destino ou se a OS já estiver concluída.
 
+### Fase 13: Paginação das Listagens (Concluída)
+- [x] **Paginação na lista de OS:** As listagens de "Minhas OS" e "Painel do Setor" agora paginam (9 por página, tabela e cards), com controles anterior/próxima e contador "Mostrando X de Y" (`src/components/dashboard/os-list-container.tsx`). Volta à página 1 ao mudar filtros/busca.
+- [x] **Paginação nos relatórios:** A tabela de produtividade por prestador na tela de Relatórios pagina (8 por página) com os mesmos controles (`src/components/dashboard/relatorio-produtividade.tsx`); o documento de impressão/PDF continua listando todos os itens. O reset de página usa o padrão do React de ajuste de estado em render (sem `useEffect`).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
