@@ -7,6 +7,7 @@ import {
   criarDepartamento,
   alternarStatusDepartamento,
   alternarRoleUsuario,
+  alterarSetorUsuario,
 } from '@/app/actions'
 import {
   Building2,
@@ -25,6 +26,7 @@ import {
   X,
   UserCheck,
   Filter,
+  ChevronDown,
 } from 'lucide-react'
 
 interface DepartamentosManagerProps {
@@ -116,6 +118,19 @@ export function DepartamentosManager({
         setTimeout(() => setFeedback(null), 3500)
       } else {
         setFeedback({ type: 'error', message: res.message || 'Erro ao alterar permissão.' })
+      }
+    })
+  }
+
+  const handleDepChange = (usuarioId: string, newDepId: string, currentDepId: string) => {
+    if (!newDepId || newDepId === currentDepId) return
+    startTransition(async () => {
+      const res = await alterarSetorUsuario(usuarioId, newDepId)
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message || 'Setor do colaborador atualizado!' })
+        setTimeout(() => setFeedback(null), 3500)
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Erro ao alterar o setor.' })
       }
     })
   }
@@ -407,12 +422,25 @@ export function DepartamentosManager({
                           </div>
                         </td>
 
-                        {/* Setor */}
+                        {/* Setor (editável) */}
                         <td className="py-4 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                            <Building2 className="w-3.5 h-3.5 text-zinc-400" />
-                            {user.departamento.nome}
-                          </span>
+                          <div className="relative inline-block">
+                            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                            <select
+                              value={user.departamentoId}
+                              onChange={(e) => handleDepChange(user.id, e.target.value, user.departamentoId)}
+                              disabled={isPending}
+                              title="Alterar setor do colaborador"
+                              className="appearance-none pl-8 pr-8 py-1.5 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-orange-400 dark:hover:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {departamentos.map((d) => (
+                                <option key={`user-${user.id}-dep-${d.id}`} value={d.id}>
+                                  {d.nome}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                          </div>
                         </td>
 
                         {/* Papel Atual Badge */}

@@ -144,6 +144,9 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
   - Server Action `atualizarPerfil` (`src/app/actions.ts`) com validação de e-mail único, senha mínima e limite de segurança de tamanho da imagem, com `revalidatePath`.
 - [x] **Responsividade Mobile / Telas Pequenas:** Navbar com **menu hambúrguer colapsável** no mobile/tablet (`md:hidden`), altura adaptativa e ocultação progressiva de elementos; dashboard, cards, tabelas (rolagem horizontal), modais e relatórios revisados para telas pequenas com grids `grid-cols-1` na base.
 
+### Fase 10: Troca de Setor de Colaboradores no Painel Admin (Concluída)
+- [x] **Alteração de setor pelo Admin:** Na aba `/departamentos` (Controle de Usuários & Acessos), a coluna "Setor / Departamento" virou um **seletor editável** — o administrador troca o setor de qualquer colaborador na hora (`src/components/departamentos/departamentos-manager.tsx`). Server Action `alterarSetorUsuario` (`src/app/actions.ts`) protegida por `requireAdmin`, com validação do setor de destino e `revalidatePath`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

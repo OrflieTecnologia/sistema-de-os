@@ -565,6 +565,42 @@ export async function alternarRoleUsuario(
   }
 }
 
+export async function alterarSetorUsuario(
+  usuarioId: string,
+  departamentoId: string
+): Promise<ActionResult> {
+  try {
+    await requireAdmin()
+    if (!usuarioId || !departamentoId) {
+      return { success: false, message: 'Usuário e setor são obrigatórios.' }
+    }
+
+    const departamento = await prisma.departamento.findUnique({
+      where: { id: departamentoId },
+      select: { id: true, nome: true },
+    })
+    if (!departamento) {
+      return { success: false, message: 'Setor informado não existe.' }
+    }
+
+    const usuario = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { departamentoId },
+      select: { nome: true },
+    })
+
+    revalidatePath('/departamentos')
+    revalidatePath('/')
+    return {
+      success: true,
+      message: `Setor de ${usuario.nome} alterado para ${departamento.nome}.`,
+    }
+  } catch (error) {
+    console.error('Erro ao alterar setor do usuário:', error)
+    return { success: false, message: 'Falha ao alterar o setor do colaborador.' }
+  }
+}
+
 // ----------------------------------------------------
 // AÇÕES DE PERFIL DO COLABORADOR
 // ----------------------------------------------------
