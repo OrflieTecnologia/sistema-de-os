@@ -460,6 +460,19 @@ export async function excluirOrdemServico(id: string): Promise<ActionResult> {
       return { success: false, message: 'ID da OS não informado.' }
     }
 
+    // Regra de negócio: OS concluídas não podem ser excluídas
+    // (preserva o histórico e a integridade dos relatórios de produtividade).
+    const osAtual = await prisma.ordemServico.findUnique({
+      where: { id },
+      select: { status: true },
+    })
+    if (osAtual?.status === 'CONCLUIDA') {
+      return {
+        success: false,
+        message: 'Não é possível excluir uma OS concluída. O histórico é preservado para os relatórios.',
+      }
+    }
+
     await prisma.ordemServico.delete({
       where: { id },
     })

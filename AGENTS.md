@@ -147,6 +147,9 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 ### Fase 10: Troca de Setor de Colaboradores no Painel Admin (Concluída)
 - [x] **Alteração de setor pelo Admin:** Na aba `/departamentos` (Controle de Usuários & Acessos), a coluna "Setor / Departamento" virou um **seletor editável** — o administrador troca o setor de qualquer colaborador na hora (`src/components/departamentos/departamentos-manager.tsx`). Server Action `alterarSetorUsuario` (`src/app/actions.ts`) protegida por `requireAdmin`, com validação do setor de destino e `revalidatePath`.
 
+### Fase 11: Proteção de Exclusão de OS Concluídas (Concluída)
+- [x] **Excluir indisponível em OS concluídas:** O botão de excluir some (na tabela e nos cards) quando a OS está `CONCLUIDA`, mantendo o botão "Ver Detalhes" (`src/components/dashboard/os-list-container.tsx`). Reforço no servidor: `excluirOrdemServico` (`src/app/actions.ts`) recusa apagar OS concluída, preservando o histórico e a integridade dos relatórios de produtividade.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

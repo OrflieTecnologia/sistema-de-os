@@ -471,14 +471,17 @@ export function OsListContainer({
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(os.id)}
-                              className="p-2 rounded-xl text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                              title="Excluir Chamado"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Excluir: indisponível para OS concluídas (preserva histórico e relatórios) */}
+                            {os.status !== 'CONCLUIDA' && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmId(os.id)}
+                                className="p-2 rounded-xl text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                title="Excluir Chamado"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -568,33 +571,35 @@ export function OsListContainer({
 
                 <div className="flex items-center gap-2 text-xs text-zinc-400" onClick={(e) => e.stopPropagation()}>
                   <span>{formatDate(os.criadoEm)}</span>
-                  {deleteConfirmId === os.id ? (
-                    <div className="flex items-center gap-1">
+                  {/* Excluir: indisponível para OS concluídas (preserva histórico e relatórios) */}
+                  {os.status !== 'CONCLUIDA' &&
+                    (deleteConfirmId === os.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(os.id)}
+                          disabled={isPending}
+                          className="p-1 rounded bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="p-1 rounded bg-zinc-200 dark:bg-zinc-700 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => handleDelete(os.id)}
-                        disabled={isPending}
-                        className="p-1 rounded bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
+                        onClick={() => setDeleteConfirmId(os.id)}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteConfirmId(null)}
-                        className="p-1 rounded bg-zinc-200 dark:bg-zinc-700 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmId(os.id)}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                    ))}
                 </div>
               </div>
             </div>
