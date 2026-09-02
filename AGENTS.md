@@ -157,6 +157,11 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Paginação na lista de OS:** As listagens de "Minhas OS" e "Painel do Setor" agora paginam (9 por página, tabela e cards), com controles anterior/próxima e contador "Mostrando X de Y" (`src/components/dashboard/os-list-container.tsx`). Volta à página 1 ao mudar filtros/busca.
 - [x] **Paginação nos relatórios:** A tabela de produtividade por prestador na tela de Relatórios pagina (8 por página) com os mesmos controles (`src/components/dashboard/relatorio-produtividade.tsx`); o documento de impressão/PDF continua listando todos os itens. O reset de página usa o padrão do React de ajuste de estado em render (sem `useEffect`).
 
+### Fase 14: Comentários e Anexos (Prints) nas OS (Concluída)
+- [x] **Novos modelos:** `AnexoOS` (imagens em base64 já comprimidas) e `ComentarioOS` (texto + autor), ambos com relação `Cascade` para `OrdemServico` (`prisma/schema.prisma`).
+- [x] **Anexos na criação:** O modal de Nova OS ganhou um campo de **prints/imagens com preview** (até 6, redimensionadas/comprimidas no cliente via `src/lib/image-utils.ts`), enviadas como base64 e salvas como `AnexoOS` (`src/components/dashboard/os-modal.tsx`, `criarOrdemServico`).
+- [x] **Thread de comentários + galeria na tela de detalhes:** O modal de detalhes da OS (`os-list-container.tsx`) carrega comentários e anexos sob demanda (`obterDetalhesOS`), permite **adicionar comentários e novos prints** e removê-los. Server Actions: `adicionarComentario`, `adicionarAnexoOS`, `excluirComentario`, `excluirAnexoOS` (`src/app/actions.ts`), com limites de tamanho/quantidade. As imagens ficam em tabela separada para não pesar as listagens.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

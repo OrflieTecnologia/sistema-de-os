@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useTransition, useEffect, useRef, useCallback, useMemo } from 'react'
+import Image from 'next/image'
 import { criarOrdemServico, listarUsuariosPorDepartamento, DepartamentoDTO, UsuarioDTO } from '@/app/actions'
 import { SessionUser } from '@/lib/auth'
-import { X, PlusCircle, Loader2, CheckCircle, AlertCircle, Building2, User, UserCheck } from 'lucide-react'
+import { comprimirImagem } from '@/lib/image-utils'
+import { X, PlusCircle, Loader2, CheckCircle, AlertCircle, Building2, User, UserCheck, ImagePlus, Trash2 } from 'lucide-react'
+
+const MAX_ANEXOS = 6
 
 interface OsModalProps {
   isOpen: boolean
@@ -33,7 +37,10 @@ export function OsModal({
   const [destinoId, setDestinoId] = useState<string>(initialDestinoId)
   const [tecnicos, setTecnicos] = useState<UsuarioDTO[]>([])
   const [carregandoTecnicos, setCarregandoTecnicos] = useState(false)
+  const [anexos, setAnexos] = useState<{ dados: string; nome: string }[]>([])
+  const [comprimindo, setComprimindo] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const activeDestinoId = departamentosDestino.some((d) => d.id === destinoId)
     ? destinoId
@@ -41,8 +48,45 @@ export function OsModal({
 
   const handleClose = useCallback(() => {
     setFeedback(null)
+    setAnexos([])
     onClose()
   }, [onClose])
+
+  const handleSelectImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (fileRef.current) fileRef.current.value = ''
+    if (files.length === 0) return
+
+    const espacoRestante = MAX_ANEXOS - anexos.length
+    if (espacoRestante <= 0) {
+      setFeedback({ type: 'error', message: `Máximo de ${MAX_ANEXOS} imagens por chamado.` })
+      return
+    }
+
+    setComprimindo(true)
+    try {
+      const novos: { dados: string; nome: string }[] = []
+      for (const file of files.slice(0, espacoRestante)) {
+        if (!file.type.startsWith('image/')) continue
+        if (file.size > 8 * 1024 * 1024) {
+          setFeedback({ type: 'error', message: `"${file.name}" é muito grande (máx. 8MB).` })
+          continue
+        }
+        const dados = await comprimirImagem(file)
+        novos.push({ dados, nome: file.name })
+      }
+      if (novos.length > 0) {
+        setAnexos((prev) => [...prev, ...novos])
+        setFeedback(null)
+      }
+    } catch {
+      setFeedback({ type: 'error', message: 'Falha ao processar a imagem.' })
+    } finally {
+      setComprimindo(false)
+    }
+  }
+
+  const removerAnexo = (idx: number) => setAnexos((prev) => prev.filter((_, i) => i !== idx))
 
   // Carrega técnicos ao mudar o setor de destino
   useEffect(() => {
@@ -79,11 +123,13 @@ export function OsModal({
 
   async function handleSubmit(formData: FormData) {
     setFeedback(null)
+    formData.set('anexos', JSON.stringify(anexos))
     startTransition(async () => {
       const res = await criarOrdemServico(formData)
       if (res.success) {
         setFeedback({ type: 'success', message: res.message || 'Ordem de serviço registrada!' })
         formRef.current?.reset()
+        setAnexos([])
         setTimeout(() => {
           handleClose()
         }, 1200)
@@ -279,6 +325,69 @@ export function OsModal({
                 placeholder="Descreva com clareza o que é necessário, justificativa, dados de apoio ou prazos..."
                 className="w-full bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all resize-none"
               />
+            </div>
+
+            {/* Anexos / Prints */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <ImagePlus className="w-3.5 h-3.5 text-orange-500" />
+                  Anexar Prints / Imagens (Opcional)
+                </span>
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                {anexos.map((a, idx) => (
+                  <div key={`anexo-${idx}`} className="relative group">
+                    <Image
+                      src={a.dados}
+                      alt={a.nome}
+                      width={72}
+                      height={72}
+                      unoptimized
+                      className="w-18 h-18 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700"
+                      style={{ width: 72, height: 72 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removerAnexo(idx)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-sm hover:bg-rose-500 cursor-pointer"
+                      title="Remover"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {anexos.length < MAX_ANEXOS && (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={comprimindo}
+                    className="w-18 h-18 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-orange-500 hover:border-orange-400 transition-colors cursor-pointer disabled:opacity-60"
+                    style={{ width: 72, height: 72 }}
+                    title="Adicionar imagem"
+                  >
+                    {comprimindo ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <ImagePlus className="w-5 h-5" />
+                        <span className="text-[10px] font-semibold">Adicionar</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleSelectImages}
+                className="hidden"
+              />
+              <p className="text-[11px] text-zinc-400 mt-1.5">
+                Até {MAX_ANEXOS} imagens · úteis para prints de tela. São redimensionadas automaticamente.
+              </p>
             </div>
           </div>
 

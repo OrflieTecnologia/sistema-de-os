@@ -41,6 +41,7 @@ model Usuario {
   ordensSolicitadas OrdemServico[] @relation("SolicitanteOS")
   ordensAtendidas   OrdemServico[] @relation("ResponsavelOS")
   relatoriosGerados Relatorio[]
+  comentarios       ComentarioOS[]
   criadoEm          DateTime       @default(now())
   atualizadoEm      DateTime       @updatedAt
 }
@@ -72,8 +73,33 @@ model OrdemServico {
   departamentoOrigem    Departamento  @relation("OrigemDepartamento", fields: [departamentoOrigemId], references: [id], onDelete: Cascade)
   departamentoDestinoId String
   departamentoDestino   Departamento  @relation("DestinoDepartamento", fields: [departamentoDestinoId], references: [id], onDelete: Cascade)
+  anexos                AnexoOS[]
+  comentarios           ComentarioOS[]
   criadoEm              DateTime      @default(now())
   atualizadoEm          DateTime      @updatedAt
+}
+
+model AnexoOS {
+  id       String       @id @default(cuid())
+  ordemId  String
+  ordem    OrdemServico @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  dados    String       // imagem em base64 (data URL), já comprimida
+  nome     String?
+  criadoEm DateTime     @default(now())
+
+  @@index([ordemId])
+}
+
+model ComentarioOS {
+  id       String       @id @default(cuid())
+  ordemId  String
+  ordem    OrdemServico @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  autorId  String
+  autor    Usuario      @relation(fields: [autorId], references: [id], onDelete: Cascade)
+  texto    String
+  criadoEm DateTime     @default(now())
+
+  @@index([ordemId])
 }
 
 model Relatorio {

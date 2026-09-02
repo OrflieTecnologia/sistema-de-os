@@ -72,6 +72,25 @@ export type OrdemServicoDTO = {
   atualizadoEm: string
 }
 
+export type ComentarioDTO = {
+  id: string
+  texto: string
+  criadoEm: string
+  autor: { id: string; nome: string; email: string }
+}
+
+export type AnexoDTO = {
+  id: string
+  dados: string
+  nome: string | null
+  criadoEm: string
+}
+
+export type DetalhesOSDTO = {
+  comentarios: ComentarioDTO[]
+  anexos: AnexoDTO[]
+}
+
 export type ProdutividadeItemDTO = {
   responsavelId: string | null
   responsavelNome: string
@@ -269,6 +288,9 @@ export async function criarOrdemServico(formData: FormData): Promise<ActionResul
       }
     }
 
+    // Anexos (prints) enviados como JSON de data URLs base64 já comprimidas no cliente
+    const anexos = parseAnexos(formData.get('anexos'))
+
     const timestamp = Date.now().toString().slice(-6)
     const randomSuffix = Math.floor(100 + Math.random() * 900)
     const codigo = `OS-${timestamp}-${randomSuffix}`
@@ -284,6 +306,7 @@ export async function criarOrdemServico(formData: FormData): Promise<ActionResul
         departamentoDestinoId,
         prioridade,
         status: 'ABERTA',
+        anexos: anexos.length > 0 ? { create: anexos.map((a) => ({ dados: a.dados, nome: a.nome })) } : undefined,
       },
       include: {
         solicitante: { select: { id: true, nome: true, email: true } },
@@ -630,6 +653,151 @@ export async function alterarSetorUsuario(
   } catch (error) {
     console.error('Erro ao alterar setor do usuário:', error)
     return { success: false, message: 'Falha ao alterar o setor do colaborador.' }
+  }
+}
+
+// ----------------------------------------------------
+// AÇÕES DE COMENTÁRIOS E ANEXOS (PRINTS) DAS OS
+// ----------------------------------------------------
+
+const MAX_ANEXOS = 6
+const MAX_ANEXO_LEN = 4_000_000 // ~3MB por imagem em base64 (após compressão no cliente)
+
+function parseAnexos(raw: FormDataEntryValue | null): { dados: string; nome: string | null }[] {
+  if (typeof raw !== 'string' || !raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((a) => {
+        if (typeof a === 'string') return { dados: a, nome: null }
+        if (a && typeof a.dados === 'string')
+          return { dados: a.dados, nome: typeof a.nome === 'string' ? a.nome : null }
+        return null
+      })
+      .filter(
+        (a): a is { dados: string; nome: string | null } =>
+          !!a && a.dados.startsWith('data:image/') && a.dados.length <= MAX_ANEXO_LEN
+      )
+      .slice(0, MAX_ANEXOS)
+  } catch {
+    return []
+  }
+}
+
+export async function obterDetalhesOS(ordemId: string): Promise<DetalhesOSDTO> {
+  try {
+    if (!ordemId) return { comentarios: [], anexos: [] }
+    const [comentarios, anexos] = await Promise.all([
+      prisma.comentarioOS.findMany({
+        where: { ordemId },
+        orderBy: { criadoEm: 'asc' },
+        include: { autor: { select: { id: true, nome: true, email: true } } },
+      }),
+      prisma.anexoOS.findMany({ where: { ordemId }, orderBy: { criadoEm: 'asc' } }),
+    ])
+    return {
+      comentarios: comentarios.map((c) => ({
+        id: c.id,
+        texto: c.texto,
+        criadoEm: c.criadoEm.toISOString(),
+        autor: c.autor,
+      })),
+      anexos: anexos.map((a) => ({
+        id: a.id,
+        dados: a.dados,
+        nome: a.nome,
+        criadoEm: a.criadoEm.toISOString(),
+      })),
+    }
+  } catch (error) {
+    console.error('Erro ao obter detalhes da OS:', error)
+    return { comentarios: [], anexos: [] }
+  }
+}
+
+export async function adicionarComentario(
+  ordemId: string,
+  texto: string
+): Promise<ActionResult<ComentarioDTO>> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Você precisa estar logado.' }
+    const t = texto?.trim()
+    if (!ordemId || !t) return { success: false, message: 'Escreva um comentário.' }
+    if (t.length > 5000) return { success: false, message: 'Comentário muito longo (máx. 5000 caracteres).' }
+
+    const c = await prisma.comentarioOS.create({
+      data: { ordemId, autorId: user.id, texto: t },
+      include: { autor: { select: { id: true, nome: true, email: true } } },
+    })
+    revalidatePath('/')
+    return {
+      success: true,
+      data: { id: c.id, texto: c.texto, criadoEm: c.criadoEm.toISOString(), autor: c.autor },
+    }
+  } catch (error) {
+    console.error('Erro ao adicionar comentário:', error)
+    return { success: false, message: 'Falha ao adicionar comentário.' }
+  }
+}
+
+export async function adicionarAnexoOS(
+  ordemId: string,
+  dados: string,
+  nome?: string
+): Promise<ActionResult<AnexoDTO>> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Você precisa estar logado.' }
+    if (!ordemId || !dados) return { success: false, message: 'Imagem inválida.' }
+    if (!dados.startsWith('data:image/')) return { success: false, message: 'O arquivo não é uma imagem válida.' }
+    if (dados.length > MAX_ANEXO_LEN) return { success: false, message: 'A imagem é muito grande (máx. ~3MB).' }
+
+    const total = await prisma.anexoOS.count({ where: { ordemId } })
+    if (total >= MAX_ANEXOS) return { success: false, message: `Limite de ${MAX_ANEXOS} imagens por OS atingido.` }
+
+    const a = await prisma.anexoOS.create({ data: { ordemId, dados, nome: nome?.slice(0, 200) || null } })
+    revalidatePath('/')
+    return {
+      success: true,
+      data: { id: a.id, dados: a.dados, nome: a.nome, criadoEm: a.criadoEm.toISOString() },
+    }
+  } catch (error) {
+    console.error('Erro ao adicionar anexo:', error)
+    return { success: false, message: 'Falha ao anexar a imagem.' }
+  }
+}
+
+export async function excluirComentario(id: string): Promise<ActionResult> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Não autenticado.' }
+    const c = await prisma.comentarioOS.findUnique({ where: { id }, select: { autorId: true } })
+    if (!c) return { success: false, message: 'Comentário não encontrado.' }
+    if (c.autorId !== user.id && user.role !== 'ADMIN') {
+      return { success: false, message: 'Você só pode excluir seus próprios comentários.' }
+    }
+    await prisma.comentarioOS.delete({ where: { id } })
+    revalidatePath('/')
+    return { success: true, message: 'Comentário removido.' }
+  } catch (error) {
+    console.error('Erro ao excluir comentário:', error)
+    return { success: false, message: 'Falha ao excluir comentário.' }
+  }
+}
+
+export async function excluirAnexoOS(id: string): Promise<ActionResult> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Não autenticado.' }
+    if (!id) return { success: false, message: 'Anexo inválido.' }
+    await prisma.anexoOS.delete({ where: { id } })
+    revalidatePath('/')
+    return { success: true, message: 'Imagem removida.' }
+  } catch (error) {
+    console.error('Erro ao excluir anexo:', error)
+    return { success: false, message: 'Falha ao remover a imagem.' }
   }
 }
 
