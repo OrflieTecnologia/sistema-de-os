@@ -79,6 +79,7 @@ export default async function Home({ searchParams }: HomePageProps) {
               departamentos={departamentos}
               role={currentUser.role}
               currentUserName={currentUser.nome}
+              currentUserDeptId={currentUser.departamentoId}
             />
           </div>
         )}

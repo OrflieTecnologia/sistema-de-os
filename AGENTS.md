@@ -150,6 +150,9 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 ### Fase 11: Proteção de Exclusão de OS Concluídas (Concluída)
 - [x] **Excluir indisponível em OS concluídas:** O botão de excluir some (na tabela e nos cards) quando a OS está `CONCLUIDA`, mantendo o botão "Ver Detalhes" (`src/components/dashboard/os-list-container.tsx`). Reforço no servidor: `excluirOrdemServico` (`src/app/actions.ts`) recusa apagar OS concluída, preservando o histórico e a integridade dos relatórios de produtividade.
 
+### Fase 12: Controle de Quem Altera o Status da OS (Concluída)
+- [x] **Só o setor de destino altera o status:** O seletor de status fica **bloqueado (com cadeado e tooltip)** para o dono/solicitante — apenas colaboradores do setor de destino (`departamentoDestinoId`) podem alterar. Além disso, **OS concluída trava o status para todos**. Aplicado na tabela e nos cards (`src/components/dashboard/os-list-container.tsx`, que recebe `currentUserDeptId` via `src/app/page.tsx`). Reforço no servidor: `atualizarStatusOS` (`src/app/actions.ts`) recusa a alteração se o usuário não for do setor de destino ou se a OS já estiver concluída.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

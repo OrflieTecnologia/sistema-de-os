@@ -29,6 +29,7 @@ import {
   Building2,
   FileText,
   Hash,
+  Lock,
 } from 'lucide-react'
 
 interface OsListContainerProps {
@@ -36,6 +37,7 @@ interface OsListContainerProps {
   departamentos: DepartamentoDTO[]
   role?: UserRole
   currentUserName?: string
+  currentUserDeptId?: string
 }
 
 type ViewMode = 'table' | 'grid'
@@ -43,6 +45,7 @@ type ViewMode = 'table' | 'grid'
 export function OsListContainer({
   ordens,
   departamentos,
+  currentUserDeptId,
 }: OsListContainerProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<string>('TODOS')
@@ -121,6 +124,23 @@ export function OsListContainer({
     startTransition(async () => {
       await atualizarStatusOS(id, newStatus)
     })
+  }
+
+  // Regras de edição de status da OS:
+  // - OS concluída trava o status para todos.
+  // - Apenas o setor de destino (para quem a OS foi direcionada) pode alterar; o dono/solicitante não.
+  const getStatusEditInfo = (os: OrdemServicoDTO) => {
+    if (os.status === 'CONCLUIDA') {
+      return { canEdit: false, reason: 'OS concluída: o status não pode mais ser alterado.' }
+    }
+    const isDestino = !!currentUserDeptId && currentUserDeptId === os.departamentoDestinoId
+    if (!isDestino) {
+      return {
+        canEdit: false,
+        reason: 'Somente o setor de destino pode alterar o status desta OS.',
+      }
+    }
+    return { canEdit: true, reason: 'Alterar status da OS' }
   }
 
   const handleDelete = (id: string) => {
@@ -351,6 +371,7 @@ export function OsListContainer({
               </thead>
               <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/60 text-xs sm:text-sm">
                 {filteredOrders.map((os) => {
+                  const statusEdit = getStatusEditInfo(os)
                   return (
                     <tr
                       key={os.id}
@@ -417,12 +438,14 @@ export function OsListContainer({
 
                       {/* Status Dropdown */}
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="relative inline-block">
+                        <div className="relative inline-block" title={statusEdit.reason}>
                           <select
                             value={os.status}
                             onChange={(e) => handleStatusChange(os.id, e.target.value as StatusOS)}
-                            disabled={isPending}
-                            className="appearance-none font-bold text-xs rounded-xl px-3 py-1.5 pr-7 border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
+                            disabled={isPending || !statusEdit.canEdit}
+                            className={`appearance-none font-bold text-xs rounded-xl px-3 py-1.5 pr-7 border transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 ${
+                              statusEdit.canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+                            }`}
                           >
                             <option value="ABERTA">Aberta</option>
                             <option value="EM_ANDAMENTO">Em Andamento</option>
@@ -430,7 +453,11 @@ export function OsListContainer({
                             <option value="CONCLUIDA">Concluída</option>
                             <option value="CANCELADA">Cancelada</option>
                           </select>
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                          {statusEdit.canEdit ? (
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                          ) : (
+                            <Lock className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-400 pointer-events-none" />
+                          )}
                         </div>
                       </td>
 
@@ -495,7 +522,9 @@ export function OsListContainer({
       ) : (
         /* VISUALIZAÇÃO EM CARDS / GRID */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredOrders.map((os) => (
+          {filteredOrders.map((os) => {
+            const statusEdit = getStatusEditInfo(os)
+            return (
             <div
               key={`card-${os.id}`}
               onClick={() => setDetailOS(os)}
@@ -552,13 +581,15 @@ export function OsListContainer({
 
               {/* Footer do Card com Status e Ações */}
               <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <div className="relative" onClick={(e) => e.stopPropagation()} title={statusEdit.reason}>
                   <select
                     value={os.status}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => handleStatusChange(os.id, e.target.value as StatusOS)}
-                    disabled={isPending}
-                    className="appearance-none font-bold text-xs rounded-xl px-3 py-1.5 pr-7 border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
+                    disabled={isPending || !statusEdit.canEdit}
+                    className={`appearance-none font-bold text-xs rounded-xl px-3 py-1.5 pr-7 border transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/30 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 ${
+                      statusEdit.canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+                    }`}
                   >
                     <option value="ABERTA">Aberta</option>
                     <option value="EM_ANDAMENTO">Em Andamento</option>
@@ -566,7 +597,11 @@ export function OsListContainer({
                     <option value="CONCLUIDA">Concluída</option>
                     <option value="CANCELADA">Cancelada</option>
                   </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                  {statusEdit.canEdit ? (
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                  ) : (
+                    <Lock className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-400 pointer-events-none" />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-zinc-400" onClick={(e) => e.stopPropagation()}>
@@ -603,7 +638,8 @@ export function OsListContainer({
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

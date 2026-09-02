@@ -392,25 +392,44 @@ export async function atualizarStatusOS(
       return { success: false, message: 'Dados inválidos para atualização.' }
     }
 
+    const user = await getSessionUser()
+    if (!user) {
+      return { success: false, message: 'Você precisa estar logado para alterar o status.' }
+    }
+
+    const osAtual = await prisma.ordemServico.findUnique({
+      where: { id },
+      select: { status: true, departamentoDestinoId: true, responsavelId: true },
+    })
+    if (!osAtual) {
+      return { success: false, message: 'Ordem de serviço não encontrada.' }
+    }
+
+    // Regra: OS concluída não pode mais ter o status alterado.
+    if (osAtual.status === 'CONCLUIDA') {
+      return {
+        success: false,
+        message: 'Esta OS está concluída e seu status não pode mais ser alterado.',
+      }
+    }
+
+    // Regra: apenas o setor de destino (para quem a OS foi direcionada) pode
+    // alterar o status — o dono/solicitante não altera o próprio chamado.
+    if (user.departamentoId !== osAtual.departamentoDestinoId) {
+      return {
+        success: false,
+        message: 'Apenas o setor de destino pode alterar o status desta OS.',
+      }
+    }
+
     const dadosAtualizacao: { status: StatusOS; responsavelId?: string } = {
       status: novoStatus,
     }
 
-    // Regra de negócio: ao CONCLUIR uma OS que ainda não tem responsável,
-    // o próprio usuário que a conclui é registrado como responsável técnico
-    // (marca quem efetivamente realizou o atendimento). OS que já foram
-    // criadas/atribuídas a alguém mantêm o responsável original.
-    if (novoStatus === 'CONCLUIDA') {
-      const user = await getSessionUser()
-      if (user) {
-        const osAtual = await prisma.ordemServico.findUnique({
-          where: { id },
-          select: { responsavelId: true },
-        })
-        if (osAtual && !osAtual.responsavelId) {
-          dadosAtualizacao.responsavelId = user.id
-        }
-      }
+    // Regra: ao CONCLUIR uma OS sem responsável, o próprio usuário que a conclui
+    // é registrado como responsável técnico. OS já atribuídas mantêm o original.
+    if (novoStatus === 'CONCLUIDA' && !osAtual.responsavelId) {
+      dadosAtualizacao.responsavelId = user.id
     }
 
     await prisma.ordemServico.update({
