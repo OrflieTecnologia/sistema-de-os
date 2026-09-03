@@ -502,13 +502,30 @@ export async function excluirOrdemServico(id: string): Promise<ActionResult> {
       return { success: false, message: 'ID da OS não informado.' }
     }
 
-    // Regra de negócio: OS concluídas não podem ser excluídas
-    // (preserva o histórico e a integridade dos relatórios de produtividade).
+    const user = await getSessionUser()
+    if (!user) {
+      return { success: false, message: 'Você precisa estar logado para excluir.' }
+    }
+
     const osAtual = await prisma.ordemServico.findUnique({
       where: { id },
-      select: { status: true },
+      select: { status: true, solicitanteId: true },
     })
-    if (osAtual?.status === 'CONCLUIDA') {
+    if (!osAtual) {
+      return { success: false, message: 'Ordem de serviço não encontrada.' }
+    }
+
+    // Regra: apenas o dono (solicitante) da OS ou um ADMIN podem excluir.
+    if (user.role !== 'ADMIN' && osAtual.solicitanteId !== user.id) {
+      return {
+        success: false,
+        message: 'Apenas quem abriu a OS ou um administrador pode excluí-la.',
+      }
+    }
+
+    // Regra: OS concluídas não podem ser excluídas
+    // (preserva o histórico e a integridade dos relatórios de produtividade).
+    if (osAtual.status === 'CONCLUIDA') {
       return {
         success: false,
         message: 'Não é possível excluir uma OS concluída. O histórico é preservado para os relatórios.',

@@ -50,6 +50,7 @@ interface OsListContainerProps {
   departamentos: DepartamentoDTO[]
   role?: UserRole
   currentUserName?: string
+  currentUserId?: string
   currentUserDeptId?: string
 }
 
@@ -58,6 +59,8 @@ type ViewMode = 'table' | 'grid'
 export function OsListContainer({
   ordens,
   departamentos,
+  role,
+  currentUserId,
   currentUserDeptId,
 }: OsListContainerProps) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -241,6 +244,10 @@ export function OsListContainer({
       await atualizarStatusOS(id, newStatus)
     })
   }
+
+  // Regra de exclusão: apenas o dono (solicitante) da OS ou um ADMIN podem excluir.
+  const podeExcluir = (os: OrdemServicoDTO) =>
+    role === 'ADMIN' || (!!currentUserId && os.solicitanteId === currentUserId)
 
   // Regras de edição de status da OS:
   // - OS concluída trava o status para todos.
@@ -614,8 +621,8 @@ export function OsListContainer({
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            {/* Excluir: indisponível para OS concluídas (preserva histórico e relatórios) */}
-                            {os.status !== 'CONCLUIDA' && (
+                            {/* Excluir: só o dono da OS ou ADMIN, e nunca em OS concluída (preserva histórico) */}
+                            {podeExcluir(os) && os.status !== 'CONCLUIDA' && (
                               <button
                                 type="button"
                                 onClick={() => setDeleteConfirmId(os.id)}
@@ -722,8 +729,8 @@ export function OsListContainer({
 
                 <div className="flex items-center gap-2 text-xs text-zinc-400" onClick={(e) => e.stopPropagation()}>
                   <span>{formatDate(os.criadoEm)}</span>
-                  {/* Excluir: indisponível para OS concluídas (preserva histórico e relatórios) */}
-                  {os.status !== 'CONCLUIDA' &&
+                  {/* Excluir: só o dono da OS ou ADMIN, e nunca em OS concluída (preserva histórico) */}
+                  {podeExcluir(os) && os.status !== 'CONCLUIDA' &&
                     (deleteConfirmId === os.id ? (
                       <div className="flex items-center gap-1">
                         <button

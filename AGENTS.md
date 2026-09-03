@@ -157,6 +157,9 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Paginação na lista de OS:** As listagens de "Minhas OS" e "Painel do Setor" agora paginam (9 por página, tabela e cards), com controles anterior/próxima e contador "Mostrando X de Y" (`src/components/dashboard/os-list-container.tsx`). Volta à página 1 ao mudar filtros/busca.
 - [x] **Paginação nos relatórios:** A tabela de produtividade por prestador na tela de Relatórios pagina (8 por página) com os mesmos controles (`src/components/dashboard/relatorio-produtividade.tsx`); o documento de impressão/PDF continua listando todos os itens. O reset de página usa o padrão do React de ajuste de estado em render (sem `useEffect`).
 
+### Fase 15: Restrição de Exclusão de OS (Dono ou Admin) (Concluída)
+- [x] **Só o dono ou um ADMIN podem excluir:** O botão de excluir só aparece para o solicitante que abriu a OS ou para um Administrador — some para os demais (inclusive colegas do setor de destino no Painel do Setor), evitando exclusões indevidas (`src/components/dashboard/os-list-container.tsx`, recebe `currentUserId` via `src/app/page.tsx`). Reforço no servidor: `excluirOrdemServico` (`src/app/actions.ts`) recusa a exclusão se o usuário não for o dono nem ADMIN (além da regra de OS concluída já existente).
+
 ### Fase 14: Comentários e Anexos (Prints) nas OS (Concluída)
 - [x] **Novos modelos:** `AnexoOS` (imagens em base64 já comprimidas) e `ComentarioOS` (texto + autor), ambos com relação `Cascade` para `OrdemServico` (`prisma/schema.prisma`).
 - [x] **Anexos na criação:** O modal de Nova OS ganhou um campo de **prints/imagens com preview** (até 6, redimensionadas/comprimidas no cliente via `src/lib/image-utils.ts`), enviadas como base64 e salvas como `AnexoOS` (`src/components/dashboard/os-modal.tsx`, `criarOrdemServico`).
