@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard de Gestão de Ordens de Serviço | OS Manager",
+  title: "Sistema de Ordem de Serviço",
   description: "Sistema corporativo de controle, acompanhamento e métricas de Ordens de Serviço.",
 };
 
