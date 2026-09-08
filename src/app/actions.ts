@@ -3,6 +3,7 @@
 import { prisma, StatusOS, PrioridadeOS, Prisma, UserRole } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getSessionUser, requireAdmin } from '@/lib/auth'
+import { mimeDeDataUrl, tipoAnexoPermitido } from '@/lib/anexo-tipos'
 import bcrypt from 'bcryptjs'
 
 export type ActionResult<T = unknown> = {
@@ -677,8 +678,8 @@ export async function alterarSetorUsuario(
 // AÇÕES DE COMENTÁRIOS E ANEXOS (PRINTS) DAS OS
 // ----------------------------------------------------
 
-const MAX_ANEXOS = 6
-const MAX_ANEXO_LEN = 4_000_000 // ~3MB por imagem em base64 (após compressão no cliente)
+const MAX_ANEXOS = 8
+const MAX_ANEXO_LEN = 7_000_000 // ~5MB por arquivo em base64
 
 function parseAnexos(raw: FormDataEntryValue | null): { dados: string; nome: string | null }[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -694,7 +695,10 @@ function parseAnexos(raw: FormDataEntryValue | null): { dados: string; nome: str
       })
       .filter(
         (a): a is { dados: string; nome: string | null } =>
-          !!a && a.dados.startsWith('data:image/') && a.dados.length <= MAX_ANEXO_LEN
+          !!a &&
+          a.dados.startsWith('data:') &&
+          tipoAnexoPermitido(mimeDeDataUrl(a.dados)) &&
+          a.dados.length <= MAX_ANEXO_LEN
       )
       .slice(0, MAX_ANEXOS)
   } catch {
@@ -767,12 +771,13 @@ export async function adicionarAnexoOS(
   try {
     const user = await getSessionUser()
     if (!user) return { success: false, message: 'Você precisa estar logado.' }
-    if (!ordemId || !dados) return { success: false, message: 'Imagem inválida.' }
-    if (!dados.startsWith('data:image/')) return { success: false, message: 'O arquivo não é uma imagem válida.' }
-    if (dados.length > MAX_ANEXO_LEN) return { success: false, message: 'A imagem é muito grande (máx. ~3MB).' }
+    if (!ordemId || !dados) return { success: false, message: 'Arquivo inválido.' }
+    if (!dados.startsWith('data:') || !tipoAnexoPermitido(mimeDeDataUrl(dados)))
+      return { success: false, message: 'Tipo de arquivo não permitido.' }
+    if (dados.length > MAX_ANEXO_LEN) return { success: false, message: 'O arquivo é muito grande (máx. ~5MB).' }
 
     const total = await prisma.anexoOS.count({ where: { ordemId } })
-    if (total >= MAX_ANEXOS) return { success: false, message: `Limite de ${MAX_ANEXOS} imagens por OS atingido.` }
+    if (total >= MAX_ANEXOS) return { success: false, message: `Limite de ${MAX_ANEXOS} anexos por OS atingido.` }
 
     const a = await prisma.anexoOS.create({ data: { ordemId, dados, nome: nome?.slice(0, 200) || null } })
     revalidatePath('/')

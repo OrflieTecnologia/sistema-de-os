@@ -4,10 +4,20 @@ import { useState, useTransition, useEffect, useRef, useCallback, useMemo } from
 import Image from 'next/image'
 import { criarOrdemServico, listarUsuariosPorDepartamento, DepartamentoDTO, UsuarioDTO } from '@/app/actions'
 import { SessionUser } from '@/lib/auth'
-import { comprimirImagem } from '@/lib/image-utils'
-import { X, PlusCircle, Loader2, CheckCircle, AlertCircle, Building2, User, UserCheck, ImagePlus, Trash2 } from 'lucide-react'
+import { processarArquivo, ehImagem, rotuloArquivo, formatarTamanhoDataUrl } from '@/lib/anexo-utils'
+import { X, PlusCircle, Loader2, CheckCircle, AlertCircle, Building2, User, UserCheck, Paperclip, Trash2, FileText, FileSpreadsheet, File as FileIcon } from 'lucide-react'
 
-const MAX_ANEXOS = 6
+const MAX_ANEXOS = 8
+const ACCEPT_ANEXOS = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx'
+
+// Ícone por tipo de documento (para anexos que não são imagem)
+function IconeDocumento({ nome, dados }: { nome: string; dados: string }) {
+  const rot = rotuloArquivo(nome, dados)
+  if (rot === 'Excel') return <FileSpreadsheet className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+  if (rot === 'PDF') return <FileText className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+  if (rot === 'Word') return <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+  return <FileIcon className="w-6 h-6 text-zinc-500 dark:text-zinc-400" />
+}
 
 interface OsModalProps {
   isOpen: boolean
@@ -59,28 +69,23 @@ export function OsModal({
 
     const espacoRestante = MAX_ANEXOS - anexos.length
     if (espacoRestante <= 0) {
-      setFeedback({ type: 'error', message: `Máximo de ${MAX_ANEXOS} imagens por chamado.` })
+      setFeedback({ type: 'error', message: `Máximo de ${MAX_ANEXOS} anexos por chamado.` })
       return
     }
 
     setComprimindo(true)
     try {
       const novos: { dados: string; nome: string }[] = []
+      let erro = ''
       for (const file of files.slice(0, espacoRestante)) {
-        if (!file.type.startsWith('image/')) continue
-        if (file.size > 8 * 1024 * 1024) {
-          setFeedback({ type: 'error', message: `"${file.name}" é muito grande (máx. 8MB).` })
-          continue
+        try {
+          novos.push(await processarArquivo(file))
+        } catch (err) {
+          erro = err instanceof Error ? err.message : 'Falha ao processar o arquivo.'
         }
-        const dados = await comprimirImagem(file)
-        novos.push({ dados, nome: file.name })
       }
-      if (novos.length > 0) {
-        setAnexos((prev) => [...prev, ...novos])
-        setFeedback(null)
-      }
-    } catch {
-      setFeedback({ type: 'error', message: 'Falha ao processar a imagem.' })
+      if (novos.length > 0) setAnexos((prev) => [...prev, ...novos])
+      setFeedback(erro ? { type: 'error', message: erro } : null)
     } finally {
       setComprimindo(false)
     }
@@ -327,50 +332,73 @@ export function OsModal({
               />
             </div>
 
-            {/* Anexos / Prints */}
+            {/* Anexos: prints e documentos */}
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-1.5">
                 <span className="flex items-center gap-1.5">
-                  <ImagePlus className="w-3.5 h-3.5 text-orange-500" />
-                  Anexar Prints / Imagens (Opcional)
+                  <Paperclip className="w-3.5 h-3.5 text-orange-500" />
+                  Anexar Prints e Documentos (Opcional)
                 </span>
               </label>
               <div className="flex flex-wrap items-center gap-3">
-                {anexos.map((a, idx) => (
-                  <div key={`anexo-${idx}`} className="relative group">
-                    <Image
-                      src={a.dados}
-                      alt={a.nome}
-                      width={72}
-                      height={72}
-                      unoptimized
-                      className="w-18 h-18 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700"
-                      style={{ width: 72, height: 72 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removerAnexo(idx)}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-sm hover:bg-rose-500 cursor-pointer"
-                      title="Remover"
+                {anexos.map((a, idx) =>
+                  ehImagem(a.dados) ? (
+                    <div key={`anexo-${idx}`} className="relative group">
+                      <Image
+                        src={a.dados}
+                        alt={a.nome}
+                        width={72}
+                        height={72}
+                        unoptimized
+                        className="rounded-xl object-cover border border-zinc-200 dark:border-zinc-700"
+                        style={{ width: 72, height: 72 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removerAnexo(idx)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-sm hover:bg-rose-500 cursor-pointer"
+                        title="Remover"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      key={`anexo-${idx}`}
+                      className="relative group flex items-center gap-2 pl-2.5 pr-8 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 max-w-[220px]"
                     >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                      <IconeDocumento nome={a.nome} dados={a.dados} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{a.nome}</p>
+                        <p className="text-[10px] text-zinc-400">
+                          {rotuloArquivo(a.nome, a.dados)} · {formatarTamanhoDataUrl(a.dados)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removerAnexo(idx)}
+                        className="absolute top-1/2 -translate-y-1/2 right-1.5 w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                        title="Remover"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )
+                )}
                 {anexos.length < MAX_ANEXOS && (
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={comprimindo}
-                    className="w-18 h-18 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-orange-500 hover:border-orange-400 transition-colors cursor-pointer disabled:opacity-60"
+                    className="rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center gap-1 text-zinc-400 hover:text-orange-500 hover:border-orange-400 transition-colors cursor-pointer disabled:opacity-60"
                     style={{ width: 72, height: 72 }}
-                    title="Adicionar imagem"
+                    title="Adicionar anexo"
                   >
                     {comprimindo ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <ImagePlus className="w-5 h-5" />
+                        <Paperclip className="w-5 h-5" />
                         <span className="text-[10px] font-semibold">Adicionar</span>
                       </>
                     )}
@@ -380,13 +408,13 @@ export function OsModal({
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept={ACCEPT_ANEXOS}
                 multiple
                 onChange={handleSelectImages}
                 className="hidden"
               />
               <p className="text-[11px] text-zinc-400 mt-1.5">
-                Até {MAX_ANEXOS} imagens · úteis para prints de tela. São redimensionadas automaticamente.
+                Até {MAX_ANEXOS} anexos · imagens (prints) ou documentos (PDF, Word, Excel, CSV, TXT). Imagens são redimensionadas; documentos até 5MB.
               </p>
             </div>
           </div>

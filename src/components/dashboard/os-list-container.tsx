@@ -14,7 +14,7 @@ import {
   excluirComentario,
   excluirAnexoOS,
 } from '@/app/actions'
-import { comprimirImagem } from '@/lib/image-utils'
+import { processarArquivo, ehImagem, abrirAnexo, rotuloArquivo, formatarTamanhoDataUrl } from '@/lib/anexo-utils'
 import { UserRole } from '@/lib/auth'
 import { STATUS_CONFIG, StatusBadge } from './status-badge'
 import { PriorityBadge } from './priority-badge'
@@ -41,9 +41,22 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  ImagePlus,
+  Paperclip,
   Send,
+  FileSpreadsheet,
+  File as FileIcon,
+  ExternalLink,
 } from 'lucide-react'
+
+const ACCEPT_ANEXOS = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx'
+
+function IconeDoc({ nome, dados }: { nome: string | null; dados: string }) {
+  const rot = rotuloArquivo(nome, dados)
+  if (rot === 'Excel') return <FileSpreadsheet className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+  if (rot === 'PDF') return <FileText className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+  if (rot === 'Word') return <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+  return <FileIcon className="w-6 h-6 text-zinc-500 dark:text-zinc-400" />
+}
 
 interface OsListContainerProps {
   ordens: OrdemServicoDTO[]
@@ -133,14 +146,17 @@ export function OsListContainer({
     setDetailLoading(true)
     try {
       for (const file of files) {
-        if (!file.type.startsWith('image/')) continue
-        const dados = await comprimirImagem(file)
-        const res = await adicionarAnexoOS(alvo.id, dados, file.name)
-        if (res.success && res.data) {
-          const a = res.data
-          setDetailData((prev) =>
-            prev ? { ...prev, anexos: [...prev.anexos, a] } : { comentarios: [], anexos: [a] }
-          )
+        try {
+          const { dados, nome } = await processarArquivo(file)
+          const res = await adicionarAnexoOS(alvo.id, dados, nome)
+          if (res.success && res.data) {
+            const a = res.data
+            setDetailData((prev) =>
+              prev ? { ...prev, anexos: [...prev.anexos, a] } : { comentarios: [], anexos: [a] }
+            )
+          }
+        } catch {
+          /* ignora arquivo inválido/grande e segue os demais */
         }
       }
     } finally {
@@ -913,11 +929,11 @@ export function OsListContainer({
                 </div>
               </div>
 
-              {/* Anexos / Prints */}
+              {/* Anexos: prints e documentos */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    <ImagePlus className="w-3.5 h-3.5" /> Anexos / Prints
+                    <Paperclip className="w-3.5 h-3.5" /> Anexos
                   </span>
                   <button
                     type="button"
@@ -925,12 +941,12 @@ export function OsListContainer({
                     disabled={isPending || detailLoading}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-950 transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    <ImagePlus className="w-3.5 h-3.5" /> Adicionar
+                    <Paperclip className="w-3.5 h-3.5" /> Adicionar
                   </button>
                   <input
                     ref={detailFileRef}
                     type="file"
-                    accept="image/*"
+                    accept={ACCEPT_ANEXOS}
                     multiple
                     onChange={handleAddAnexoDetalhe}
                     className="hidden"
@@ -940,37 +956,69 @@ export function OsListContainer({
                   <p className="text-xs text-zinc-400">Carregando anexos...</p>
                 ) : detailData && detailData.anexos.length > 0 ? (
                   <div className="flex flex-wrap gap-3">
-                    {detailData.anexos.map((a) => (
-                      <div key={a.id} className="relative group">
-                        <button
-                          type="button"
-                          onClick={() => setLightboxSrc(a.dados)}
-                          className="block cursor-zoom-in"
-                          title="Ampliar imagem"
+                    {detailData.anexos.map((a) =>
+                      ehImagem(a.dados) ? (
+                        <div key={a.id} className="relative group">
+                          <button
+                            type="button"
+                            onClick={() => setLightboxSrc(a.dados)}
+                            className="block cursor-zoom-in"
+                            title="Ampliar imagem"
+                          >
+                            <Image
+                              src={a.dados}
+                              alt={a.nome || 'anexo'}
+                              width={96}
+                              height={96}
+                              unoptimized
+                              className="rounded-xl object-cover border border-zinc-200 dark:border-zinc-700"
+                              style={{ width: 96, height: 96 }}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoverAnexoDetalhe(a.id)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-sm hover:bg-rose-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remover imagem"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          key={a.id}
+                          className="relative group flex items-center gap-2.5 pl-3 pr-9 py-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-800/50 max-w-[240px]"
                         >
-                          <Image
-                            src={a.dados}
-                            alt={a.nome || 'anexo'}
-                            width={96}
-                            height={96}
-                            unoptimized
-                            className="rounded-xl object-cover border border-zinc-200 dark:border-zinc-700"
-                            style={{ width: 96, height: 96 }}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoverAnexoDetalhe(a.id)}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-sm hover:bg-rose-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Remover imagem"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            onClick={() => abrirAnexo(a.dados)}
+                            className="flex items-center gap-2.5 min-w-0 cursor-pointer text-left"
+                            title="Abrir / baixar"
+                          >
+                            <IconeDoc nome={a.nome} dados={a.dados} />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1">
+                                {a.nome || 'documento'} <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
+                              </p>
+                              <p className="text-[10px] text-zinc-400">
+                                {rotuloArquivo(a.nome, a.dados)} · {formatarTamanhoDataUrl(a.dados)}
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoverAnexoDetalhe(a.id)}
+                            className="absolute top-1/2 -translate-y-1/2 right-2 w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                            title="Remover anexo"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )
+                    )}
                   </div>
                 ) : (
-                  <p className="text-xs text-zinc-400 italic">Nenhuma imagem anexada.</p>
+                  <p className="text-xs text-zinc-400 italic">Nenhum anexo.</p>
                 )}
               </div>
 
