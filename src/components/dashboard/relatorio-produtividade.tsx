@@ -7,6 +7,7 @@ import {
   UsuarioDTO,
 } from '@/app/actions'
 import { SessionUser } from '@/lib/auth'
+import { useAutoRefresh } from '@/lib/use-auto-refresh'
 import {
   Printer,
   Download,
@@ -77,6 +78,9 @@ export function RelatorioProdutividade({
   useEffect(() => {
     carregarRelatorio()
   }, [carregarRelatorio])
+
+  // Atualiza o relatório automaticamente (ao focar a aba + polling leve), sem F5
+  useAutoRefresh(carregarRelatorio, 30000)
 
   // Exportação CSV compatível com Excel (UTF-8 com BOM)
   const exportarCSV = () => {

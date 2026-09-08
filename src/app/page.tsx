@@ -5,6 +5,7 @@ import { Header } from '@/components/dashboard/header'
 import { MetricsCards } from '@/components/dashboard/metrics-cards'
 import { OsListContainer } from '@/components/dashboard/os-list-container'
 import { RelatorioProdutividade } from '@/components/dashboard/relatorio-produtividade'
+import { AutoRefresh } from '@/components/auto-refresh'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,9 @@ export default async function Home({ searchParams }: HomePageProps) {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
       {/* Navbar Corporativa Global Fixa no Topo */}
       <Navbar user={currentUser} />
+
+      {/* Atualiza os dados automaticamente (ao focar a aba + polling leve), sem F5 */}
+      <AutoRefresh intervalMs={30000} />
 
       {/* Background Subtle Gradient Blobs em Laranja */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
