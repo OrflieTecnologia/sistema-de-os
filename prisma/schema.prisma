@@ -80,12 +80,14 @@ model OrdemServico {
 }
 
 model AnexoOS {
-  id       String       @id @default(cuid())
-  ordemId  String
-  ordem    OrdemServico @relation(fields: [ordemId], references: [id], onDelete: Cascade)
-  dados    String       // imagem em base64 (data URL), já comprimida
-  nome     String?
-  criadoEm DateTime     @default(now())
+  id          String       @id @default(cuid())
+  ordemId     String
+  ordem       OrdemServico @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  dados       String?      // legado: base64 (data URL). Novos anexos usam storagePath.
+  storagePath String?      // caminho no Supabase Storage (bucket anexos-os)
+  nome        String?
+  tamanho     Int?         // tamanho do arquivo em bytes (para exibição)
+  criadoEm    DateTime     @default(now())
 
   @@index([ordemId])
 }

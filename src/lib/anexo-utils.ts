@@ -36,13 +36,18 @@ export async function processarArquivo(file: File): Promise<{ dados: string; nom
   return { dados, nome: file.name }
 }
 
-/** Tamanho aproximado do arquivo a partir do base64. */
-export function formatarTamanhoDataUrl(dataUrl: string): string {
-  const b64 = dataUrl.split(',')[1] || ''
-  const bytes = Math.floor((b64.length * 3) / 4)
+/** Formata um tamanho em bytes de forma legível. */
+export function formatarBytes(bytes?: number | null): string {
+  if (!bytes || bytes <= 0) return ''
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** Tamanho aproximado do arquivo a partir do base64. */
+export function formatarTamanhoDataUrl(dataUrl: string): string {
+  const b64 = dataUrl.split(',')[1] || ''
+  return formatarBytes(Math.floor((b64.length * 3) / 4))
 }
 
 /** Rótulo curto do tipo (ex.: PDF, Excel, Word) a partir do nome/mime. */
@@ -58,18 +63,27 @@ export function rotuloArquivo(nome?: string | null, dataUrl?: string): string {
   return ext ? ext.toUpperCase() : 'Arquivo'
 }
 
-/** Abre o anexo numa nova aba via blob URL (PDF abre no visualizador; office baixa). */
-export function abrirAnexo(dataUrl: string): void {
+/**
+ * Abre o anexo numa nova aba.
+ * URLs http(s) assinadas (Storage) abrem direto; data URLs base64 (legado)
+ * são convertidas em blob (o navegador bloqueia navegar direto para data:).
+ */
+export function abrirAnexo(url: string): void {
   try {
-    const [meta, b64] = dataUrl.split(',')
+    if (!url) return
+    if (!url.startsWith('data:')) {
+      window.open(url, '_blank', 'noopener')
+      return
+    }
+    const [meta, b64] = url.split(',')
     const mime = mimeDeDataUrl(meta) || 'application/octet-stream'
     const bin = atob(b64)
     const arr = new Uint8Array(bin.length)
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
     const blob = new Blob([arr], { type: mime })
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank', 'noopener')
-    setTimeout(() => URL.revokeObjectURL(url), 60000)
+    const blobUrl = URL.createObjectURL(blob)
+    window.open(blobUrl, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
   } catch {
     /* ignore */
   }

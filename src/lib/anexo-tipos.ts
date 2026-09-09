@@ -25,3 +25,11 @@ export function tipoAnexoPermitido(mime: string): boolean {
   if (!mime) return false
   return TIPOS_ANEXO_PERMITIDOS.some((t) => (t.endsWith('/') ? mime.startsWith(t) : mime === t))
 }
+
+const EXTENSOES_IMAGEM = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'avif']
+
+/** Detecta se um nome/caminho de arquivo é imagem pela extensão. */
+export function ehImagemPorExtensao(nomeOuPath?: string | null): boolean {
+  const ext = (nomeOuPath?.split('.').pop() || '').toLowerCase()
+  return EXTENSOES_IMAGEM.includes(ext)
+}

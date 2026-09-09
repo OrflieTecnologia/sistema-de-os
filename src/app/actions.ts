@@ -3,7 +3,13 @@
 import { prisma, StatusOS, PrioridadeOS, Prisma, UserRole } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getSessionUser, requireAdmin } from '@/lib/auth'
-import { mimeDeDataUrl, tipoAnexoPermitido } from '@/lib/anexo-tipos'
+import { mimeDeDataUrl, tipoAnexoPermitido, ehImagemPorExtensao } from '@/lib/anexo-tipos'
+import {
+  storageConfigurado,
+  uploadAnexoDataUrl,
+  urlAssinada,
+  removerAnexoStorage,
+} from '@/lib/supabase-storage'
 import bcrypt from 'bcryptjs'
 
 export type ActionResult<T = unknown> = {
@@ -82,8 +88,10 @@ export type ComentarioDTO = {
 
 export type AnexoDTO = {
   id: string
-  dados: string
+  url: string // URL assinada (Storage) OU data URL base64 (legado)
   nome: string | null
+  isImagem: boolean
+  tamanho: number | null // bytes
   criadoEm: string
 }
 
@@ -307,7 +315,6 @@ export async function criarOrdemServico(formData: FormData): Promise<ActionResul
         departamentoDestinoId,
         prioridade,
         status: 'ABERTA',
-        anexos: anexos.length > 0 ? { create: anexos.map((a) => ({ dados: a.dados, nome: a.nome })) } : undefined,
       },
       include: {
         solicitante: { select: { id: true, nome: true, email: true } },
@@ -316,6 +323,11 @@ export async function criarOrdemServico(formData: FormData): Promise<ActionResul
         departamentoDestino: { select: { id: true, nome: true } },
       },
     })
+
+    // Salva os anexos (Storage quando configurado; senão base64 no banco).
+    if (anexos.length > 0) {
+      await salvarAnexos(novaOS.id, anexos)
+    }
 
     revalidatePath('/')
     revalidatePath('/minhas-os')
@@ -533,6 +545,18 @@ export async function excluirOrdemServico(id: string): Promise<ActionResult> {
       }
     }
 
+    // Remove os arquivos do Storage antes de apagar a OS (o cascade do banco
+    // remove as linhas de anexo, mas não os arquivos no bucket).
+    const anexos = await prisma.anexoOS.findMany({
+      where: { ordemId: id },
+      select: { storagePath: true },
+    })
+    await Promise.all(
+      anexos
+        .filter((a) => a.storagePath)
+        .map((a) => removerAnexoStorage(a.storagePath as string))
+    )
+
     await prisma.ordemServico.delete({
       where: { id },
     })
@@ -706,6 +730,65 @@ function parseAnexos(raw: FormDataEntryValue | null): { dados: string; nome: str
   }
 }
 
+/** Tamanho aproximado (bytes) de um data URL base64. */
+function bytesDeDataUrl(dataUrl: string): number {
+  const b64 = dataUrl.split(',')[1] || ''
+  return Math.floor((b64.length * 3) / 4)
+}
+
+/**
+ * Salva anexos de uma OS. Usa o Supabase Storage quando configurado
+ * (guarda só o caminho); senão faz fallback para base64 no banco (retrocompatível).
+ */
+async function salvarAnexos(
+  ordemId: string,
+  anexos: { dados: string; nome: string | null }[]
+): Promise<void> {
+  const usarStorage = storageConfigurado()
+  for (const a of anexos) {
+    try {
+      const tamanho = bytesDeDataUrl(a.dados)
+      if (usarStorage) {
+        const path = await uploadAnexoDataUrl(a.dados, ordemId, a.nome)
+        await prisma.anexoOS.create({ data: { ordemId, storagePath: path, nome: a.nome, tamanho } })
+      } else {
+        await prisma.anexoOS.create({ data: { ordemId, dados: a.dados, nome: a.nome, tamanho } })
+      }
+    } catch (e) {
+      console.error('Falha ao salvar anexo da OS', ordemId, e)
+      // segue para os demais anexos sem abortar a OS inteira
+    }
+  }
+}
+
+/** Monta o DTO de um anexo (gera URL assinada quando vem do Storage). */
+async function montarAnexoDTO(a: {
+  id: string
+  dados: string | null
+  storagePath: string | null
+  nome: string | null
+  tamanho: number | null
+  criadoEm: Date
+}): Promise<AnexoDTO> {
+  let url = ''
+  let isImagem = false
+  if (a.storagePath) {
+    url = (await urlAssinada(a.storagePath)) || ''
+    isImagem = ehImagemPorExtensao(a.storagePath) || ehImagemPorExtensao(a.nome)
+  } else if (a.dados) {
+    url = a.dados
+    isImagem = a.dados.startsWith('data:image/')
+  }
+  return {
+    id: a.id,
+    url,
+    nome: a.nome,
+    isImagem,
+    tamanho: a.tamanho ?? (a.dados ? bytesDeDataUrl(a.dados) : null),
+    criadoEm: a.criadoEm.toISOString(),
+  }
+}
+
 export async function obterDetalhesOS(ordemId: string): Promise<DetalhesOSDTO> {
   try {
     if (!ordemId) return { comentarios: [], anexos: [] }
@@ -724,12 +807,7 @@ export async function obterDetalhesOS(ordemId: string): Promise<DetalhesOSDTO> {
         criadoEm: c.criadoEm.toISOString(),
         autor: c.autor,
       })),
-      anexos: anexos.map((a) => ({
-        id: a.id,
-        dados: a.dados,
-        nome: a.nome,
-        criadoEm: a.criadoEm.toISOString(),
-      })),
+      anexos: await Promise.all(anexos.map((a) => montarAnexoDTO(a))),
     }
   } catch (error) {
     console.error('Erro ao obter detalhes da OS:', error)
@@ -779,15 +857,22 @@ export async function adicionarAnexoOS(
     const total = await prisma.anexoOS.count({ where: { ordemId } })
     if (total >= MAX_ANEXOS) return { success: false, message: `Limite de ${MAX_ANEXOS} anexos por OS atingido.` }
 
-    const a = await prisma.anexoOS.create({ data: { ordemId, dados, nome: nome?.slice(0, 200) || null } })
-    revalidatePath('/')
-    return {
-      success: true,
-      data: { id: a.id, dados: a.dados, nome: a.nome, criadoEm: a.criadoEm.toISOString() },
+    const nomeArquivo = nome?.slice(0, 200) || null
+    const tamanho = bytesDeDataUrl(dados)
+
+    let a
+    if (storageConfigurado()) {
+      const path = await uploadAnexoDataUrl(dados, ordemId, nomeArquivo)
+      a = await prisma.anexoOS.create({ data: { ordemId, storagePath: path, nome: nomeArquivo, tamanho } })
+    } else {
+      a = await prisma.anexoOS.create({ data: { ordemId, dados, nome: nomeArquivo, tamanho } })
     }
+
+    revalidatePath('/')
+    return { success: true, data: await montarAnexoDTO(a) }
   } catch (error) {
     console.error('Erro ao adicionar anexo:', error)
-    return { success: false, message: 'Falha ao anexar a imagem.' }
+    return { success: false, message: 'Falha ao anexar o arquivo.' }
   }
 }
 
@@ -814,12 +899,18 @@ export async function excluirAnexoOS(id: string): Promise<ActionResult> {
     const user = await getSessionUser()
     if (!user) return { success: false, message: 'Não autenticado.' }
     if (!id) return { success: false, message: 'Anexo inválido.' }
+
+    const anexo = await prisma.anexoOS.findUnique({ where: { id }, select: { storagePath: true } })
+    if (anexo?.storagePath) {
+      await removerAnexoStorage(anexo.storagePath)
+    }
+
     await prisma.anexoOS.delete({ where: { id } })
     revalidatePath('/')
-    return { success: true, message: 'Imagem removida.' }
+    return { success: true, message: 'Anexo removido.' }
   } catch (error) {
     console.error('Erro ao excluir anexo:', error)
-    return { success: false, message: 'Falha ao remover a imagem.' }
+    return { success: false, message: 'Falha ao remover o anexo.' }
   }
 }
 

@@ -14,7 +14,7 @@ import {
   excluirComentario,
   excluirAnexoOS,
 } from '@/app/actions'
-import { processarArquivo, ehImagem, abrirAnexo, rotuloArquivo, formatarTamanhoDataUrl } from '@/lib/anexo-utils'
+import { processarArquivo, abrirAnexo, rotuloArquivo, formatarBytes } from '@/lib/anexo-utils'
 import { UserRole } from '@/lib/auth'
 import { STATUS_CONFIG, StatusBadge } from './status-badge'
 import { PriorityBadge } from './priority-badge'
@@ -50,8 +50,8 @@ import {
 
 const ACCEPT_ANEXOS = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx'
 
-function IconeDoc({ nome, dados }: { nome: string | null; dados: string }) {
-  const rot = rotuloArquivo(nome, dados)
+function IconeDoc({ nome, url }: { nome: string | null; url: string }) {
+  const rot = rotuloArquivo(nome, url)
   if (rot === 'Excel') return <FileSpreadsheet className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
   if (rot === 'PDF') return <FileText className="w-6 h-6 text-rose-600 dark:text-rose-400" />
   if (rot === 'Word') return <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -957,16 +957,16 @@ export function OsListContainer({
                 ) : detailData && detailData.anexos.length > 0 ? (
                   <div className="flex flex-wrap gap-3">
                     {detailData.anexos.map((a) =>
-                      ehImagem(a.dados) ? (
+                      a.isImagem ? (
                         <div key={a.id} className="relative group">
                           <button
                             type="button"
-                            onClick={() => setLightboxSrc(a.dados)}
+                            onClick={() => setLightboxSrc(a.url)}
                             className="block cursor-zoom-in"
                             title="Ampliar imagem"
                           >
                             <Image
-                              src={a.dados}
+                              src={a.url}
                               alt={a.nome || 'anexo'}
                               width={96}
                               height={96}
@@ -991,17 +991,17 @@ export function OsListContainer({
                         >
                           <button
                             type="button"
-                            onClick={() => abrirAnexo(a.dados)}
+                            onClick={() => abrirAnexo(a.url)}
                             className="flex items-center gap-2.5 min-w-0 cursor-pointer text-left"
                             title="Abrir / baixar"
                           >
-                            <IconeDoc nome={a.nome} dados={a.dados} />
+                            <IconeDoc nome={a.nome} url={a.url} />
                             <div className="min-w-0">
                               <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1">
                                 {a.nome || 'documento'} <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
                               </p>
                               <p className="text-[10px] text-zinc-400">
-                                {rotuloArquivo(a.nome, a.dados)} · {formatarTamanhoDataUrl(a.dados)}
+                                {[rotuloArquivo(a.nome, a.url), formatarBytes(a.tamanho)].filter(Boolean).join(' · ')}
                               </p>
                             </div>
                           </button>
