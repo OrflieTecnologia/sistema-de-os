@@ -100,6 +100,17 @@ export type DetalhesOSDTO = {
   anexos: AnexoDTO[]
 }
 
+export type NotificacaoDTO = {
+  id: string
+  tipo: string
+  titulo: string
+  mensagem: string
+  lida: boolean
+  criadoEm: string
+  ordemId: string | null
+  ordemCodigo: string | null
+}
+
 export type ProdutividadeItemDTO = {
   responsavelId: string | null
   responsavelNome: string
@@ -329,6 +340,16 @@ export async function criarOrdemServico(formData: FormData): Promise<ActionResul
       await salvarAnexos(novaOS.id, anexos)
     }
 
+    // Notifica a equipe do setor de destino sobre a nova OS.
+    await notificar({
+      destinatarios: await membrosDoSetor(departamentoDestinoId),
+      excluir: user.id,
+      ordemId: novaOS.id,
+      tipo: 'NOVA_OS',
+      titulo: `Nova OS para ${novaOS.departamentoDestino.nome}`,
+      mensagem: `${novaOS.codigo} — ${novaOS.titulo}`,
+    })
+
     revalidatePath('/')
     revalidatePath('/minhas-os')
     revalidatePath('/painel-setor')
@@ -435,7 +456,13 @@ export async function atualizarStatusOS(
 
     const osAtual = await prisma.ordemServico.findUnique({
       where: { id },
-      select: { status: true, departamentoDestinoId: true, responsavelId: true },
+      select: {
+        status: true,
+        departamentoDestinoId: true,
+        responsavelId: true,
+        solicitanteId: true,
+        codigo: true,
+      },
     })
     if (!osAtual) {
       return { success: false, message: 'Ordem de serviço não encontrada.' }
@@ -473,6 +500,16 @@ export async function atualizarStatusOS(
       data: dadosAtualizacao,
     })
 
+    // Notifica o dono (solicitante) sobre a mudança de status da sua OS.
+    await notificar({
+      destinatarios: [osAtual.solicitanteId],
+      excluir: user.id,
+      ordemId: id,
+      tipo: 'STATUS',
+      titulo: `Status atualizado — ${osAtual.codigo}`,
+      mensagem: `Sua OS agora está: ${STATUS_LABEL[novoStatus] || novoStatus}.`,
+    })
+
     revalidatePath('/')
     revalidatePath('/minhas-os')
     revalidatePath('/painel-setor')
@@ -491,12 +528,47 @@ export async function atribuirResponsavelOS(
   try {
     if (!id) return { success: false, message: 'ID da OS não informado.' }
 
+    const user = await getSessionUser()
+    const novoResp = responsavelId && responsavelId !== 'none' ? responsavelId : null
+
+    const os = await prisma.ordemServico.findUnique({
+      where: { id },
+      select: { solicitanteId: true, codigo: true },
+    })
+
     await prisma.ordemServico.update({
       where: { id },
-      data: {
-        responsavelId: responsavelId && responsavelId !== 'none' ? responsavelId : null,
-      },
+      data: { responsavelId: novoResp },
     })
+
+    // Notifica o dono e (quando houver) o técnico atribuído.
+    if (os) {
+      let nomeResp = ''
+      if (novoResp) {
+        const r = await prisma.usuario.findUnique({ where: { id: novoResp }, select: { nome: true } })
+        nomeResp = r?.nome || 'um técnico'
+      }
+      await notificar({
+        destinatarios: [os.solicitanteId],
+        excluir: user?.id,
+        ordemId: id,
+        tipo: 'RESPONSAVEL',
+        titulo: `Responsável definido — ${os.codigo}`,
+        mensagem: novoResp
+          ? `${nomeResp} agora é responsável pela sua OS.`
+          : 'Sua OS voltou para a fila geral do setor.',
+      })
+      if (novoResp) {
+        await notificar({
+          destinatarios: [novoResp],
+          excluir: user?.id,
+          ordemId: id,
+          tipo: 'RESPONSAVEL',
+          titulo: `Você foi atribuído — ${os.codigo}`,
+          mensagem: 'Você é o responsável técnico desta OS.',
+        })
+      }
+    }
 
     revalidatePath('/')
     revalidatePath('/minhas-os')
@@ -699,6 +771,164 @@ export async function alterarSetorUsuario(
 }
 
 // ----------------------------------------------------
+// NOTIFICAÇÕES
+// ----------------------------------------------------
+
+const STATUS_LABEL: Record<string, string> = {
+  ABERTA: 'Aberta',
+  EM_ANDAMENTO: 'Em andamento',
+  AGUARDANDO_RESPOSTA: 'Aguardando resposta',
+  CONCLUIDA: 'Concluída',
+  CANCELADA: 'Cancelada',
+}
+
+/** IDs dos usuários de um setor (para notificar a equipe de destino). */
+async function membrosDoSetor(departamentoId: string): Promise<string[]> {
+  const membros = await prisma.usuario.findMany({
+    where: { departamentoId },
+    select: { id: true },
+  })
+  return membros.map((m) => m.id)
+}
+
+/**
+ * Cria notificações para uma lista de destinatários.
+ * Remove duplicados, vazios e o ator (quem realizou a ação) — ninguém é
+ * notificado do próprio ato. Falhas aqui nunca quebram a ação principal.
+ */
+async function notificar(params: {
+  destinatarios: (string | null | undefined)[]
+  excluir?: string | null
+  ordemId: string
+  tipo: string
+  titulo: string
+  mensagem: string
+}): Promise<void> {
+  try {
+    const ids = Array.from(
+      new Set(params.destinatarios.filter((d): d is string => !!d && d !== params.excluir))
+    )
+    if (ids.length === 0) return
+    await prisma.notificacao.createMany({
+      data: ids.map((usuarioId) => ({
+        usuarioId,
+        ordemId: params.ordemId,
+        tipo: params.tipo,
+        titulo: params.titulo,
+        mensagem: params.mensagem,
+      })),
+    })
+  } catch (e) {
+    console.error('Falha ao gerar notificações:', e)
+  }
+}
+
+/**
+ * Notifica sobre uma alteração feita na OS (comentário/anexo):
+ * - se quem alterou é o dono, avisa a equipe do setor de destino (+ responsável);
+ * - caso contrário, avisa o dono da OS.
+ */
+async function notificarMudancaOS(params: {
+  ordemId: string
+  atorId: string
+  tipo: string
+  titulo: (codigo: string) => string
+  mensagem: string
+}): Promise<void> {
+  const os = await prisma.ordemServico.findUnique({
+    where: { id: params.ordemId },
+    select: {
+      solicitanteId: true,
+      departamentoDestinoId: true,
+      responsavelId: true,
+      codigo: true,
+    },
+  })
+  if (!os) return
+  const ehDono = os.solicitanteId === params.atorId
+  const destinatarios = ehDono
+    ? [...(await membrosDoSetor(os.departamentoDestinoId)), os.responsavelId]
+    : [os.solicitanteId]
+  await notificar({
+    destinatarios,
+    excluir: params.atorId,
+    ordemId: params.ordemId,
+    tipo: params.tipo,
+    titulo: params.titulo(os.codigo),
+    mensagem: params.mensagem,
+  })
+}
+
+export async function listarNotificacoes(): Promise<NotificacaoDTO[]> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return []
+    const notifs = await prisma.notificacao.findMany({
+      where: { usuarioId: user.id },
+      orderBy: { criadoEm: 'desc' },
+      take: 20,
+      include: { ordem: { select: { codigo: true } } },
+    })
+    return notifs.map((n) => ({
+      id: n.id,
+      tipo: n.tipo,
+      titulo: n.titulo,
+      mensagem: n.mensagem,
+      lida: n.lida,
+      criadoEm: n.criadoEm.toISOString(),
+      ordemId: n.ordemId,
+      ordemCodigo: n.ordem?.codigo ?? null,
+    }))
+  } catch (error) {
+    console.error('Erro ao listar notificações:', error)
+    return []
+  }
+}
+
+export async function contarNotificacoesNaoLidas(): Promise<number> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return 0
+    return await prisma.notificacao.count({ where: { usuarioId: user.id, lida: false } })
+  } catch (error) {
+    console.error('Erro ao contar notificações:', error)
+    return 0
+  }
+}
+
+export async function marcarNotificacaoLida(id: string): Promise<ActionResult> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Não autenticado.' }
+    if (!id) return { success: false, message: 'Notificação inválida.' }
+    // updateMany com filtro de dono garante que ninguém marque a de outro
+    await prisma.notificacao.updateMany({
+      where: { id, usuarioId: user.id },
+      data: { lida: true },
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Erro ao marcar notificação:', error)
+    return { success: false, message: 'Falha ao marcar notificação.' }
+  }
+}
+
+export async function marcarTodasNotificacoesLidas(): Promise<ActionResult> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Não autenticado.' }
+    await prisma.notificacao.updateMany({
+      where: { usuarioId: user.id, lida: false },
+      data: { lida: true },
+    })
+    return { success: true, message: 'Notificações marcadas como lidas.' }
+  } catch (error) {
+    console.error('Erro ao marcar todas as notificações:', error)
+    return { success: false, message: 'Falha ao atualizar notificações.' }
+  }
+}
+
+// ----------------------------------------------------
 // AÇÕES DE COMENTÁRIOS E ANEXOS (PRINTS) DAS OS
 // ----------------------------------------------------
 
@@ -830,6 +1060,15 @@ export async function adicionarComentario(
       data: { ordemId, autorId: user.id, texto: t },
       include: { autor: { select: { id: true, nome: true, email: true } } },
     })
+
+    await notificarMudancaOS({
+      ordemId,
+      atorId: user.id,
+      tipo: 'COMENTARIO',
+      titulo: (cod) => `Novo comentário — ${cod}`,
+      mensagem: `${user.nome}: ${t.slice(0, 80)}${t.length > 80 ? '…' : ''}`,
+    })
+
     revalidatePath('/')
     return {
       success: true,
@@ -867,6 +1106,14 @@ export async function adicionarAnexoOS(
     } else {
       a = await prisma.anexoOS.create({ data: { ordemId, dados, nome: nomeArquivo, tamanho } })
     }
+
+    await notificarMudancaOS({
+      ordemId,
+      atorId: user.id,
+      tipo: 'ANEXO',
+      titulo: (cod) => `Novo anexo — ${cod}`,
+      mensagem: `${user.nome} anexou um arquivo${nomeArquivo ? `: ${nomeArquivo}` : ''}.`,
+    })
 
     revalidatePath('/')
     return { success: true, data: await montarAnexoDTO(a) }

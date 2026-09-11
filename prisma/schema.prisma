@@ -42,6 +42,7 @@ model Usuario {
   ordensAtendidas   OrdemServico[] @relation("ResponsavelOS")
   relatoriosGerados Relatorio[]
   comentarios       ComentarioOS[]
+  notificacoes      Notificacao[]
   criadoEm          DateTime       @default(now())
   atualizadoEm      DateTime       @updatedAt
 }
@@ -75,6 +76,7 @@ model OrdemServico {
   departamentoDestino   Departamento  @relation("DestinoDepartamento", fields: [departamentoDestinoId], references: [id], onDelete: Cascade)
   anexos                AnexoOS[]
   comentarios           ComentarioOS[]
+  notificacoes          Notificacao[]
   criadoEm              DateTime      @default(now())
   atualizadoEm          DateTime      @updatedAt
 }
@@ -102,6 +104,22 @@ model ComentarioOS {
   criadoEm DateTime     @default(now())
 
   @@index([ordemId])
+}
+
+model Notificacao {
+  id        String        @id @default(cuid())
+  usuarioId String // destinatário da notificação
+  usuario   Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ordemId   String? // OS relacionada (quando houver)
+  ordem     OrdemServico? @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  tipo      String // NOVA_OS | STATUS | COMENTARIO | ANEXO | RESPONSAVEL
+  titulo    String
+  mensagem  String
+  lida      Boolean       @default(false)
+  criadoEm  DateTime      @default(now())
+
+  @@index([usuarioId, lida])
+  @@index([usuarioId, criadoEm])
 }
 
 model Relatorio {

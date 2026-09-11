@@ -8,6 +8,7 @@ import { SessionUser } from '@/lib/auth'
 import { logoutAction } from '@/app/auth/actions'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { OrfliaLogo } from '@/components/OrfliaLogo'
+import { NotificacoesBell } from '@/components/notificacoes-bell'
 import {
   FileText,
   Users,
@@ -129,6 +130,9 @@ export function Navbar({ user }: NavbarProps) {
           {/* 3. CANTO DIREITO: Tema, Perfil, Logout e Hambúrguer (mobile) */}
           {/* ========================================================================= */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0 z-10">
+            {/* Sino de Notificações */}
+            <NotificacoesBell />
+
             {/* Toggle de Tema */}
             <ThemeToggle />
 

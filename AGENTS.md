@@ -175,7 +175,13 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Actions (`src/app/actions.ts`):** `criarOrdemServico`/`adicionarAnexoOS` sobem o arquivo ao Storage e salvam `storagePath` (com **fallback automático para base64** se o Storage não estiver configurado). `obterDetalhesOS` gera **URLs assinadas** para cada anexo. `AnexoDTO` agora expõe `url`/`isImagem`/`tamanho` (em vez do `dados` cru). `excluirAnexoOS` e `excluirOrdemServico` **removem os arquivos do bucket** (o cascade do banco não apaga o Storage).
 - [x] **Componentes:** `os-list-container.tsx` renderiza a galeria via `a.url`/`a.isImagem`/`a.tamanho` (imagem em thumbnail+lightbox; documento em card). `abrirAnexo` (`src/lib/anexo-utils.ts`) abre URLs assinadas http(s) direto e mantém o blob URL só para os data URLs legados; novo `formatarBytes`.
 - [x] **Env (local + Vercel):** `SUPABASE_URL`, `SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`. Bucket privado; leitura sempre por URL assinada.
-- [x] **Retrocompatibilidade:** anexos antigos (base64 no banco) continuam sendo lidos normalmente; a migração desses legados para o Storage é opcional e pode ser feita depois.
+- [x] **Retrocompatibilidade:** anexos antigos (base64 no banco) continuam sendo lidos normalmente. A migração dos legados já foi executada (script pontual: upload ao bucket + `storagePath`/`tamanho` + `dados` zerado), então hoje 100% dos anexos vivem no Storage.
+
+### Fase 18: Notificações In-App (Concluída)
+- [x] **Novo modelo `Notificacao`** (`prisma/schema.prisma`): destinatário (`usuarioId`), OS relacionada (`ordemId?`, cascade), `tipo` (NOVA_OS | STATUS | COMENTARIO | ANEXO | RESPONSAVEL), `titulo`, `mensagem`, `lida`, `criadoEm`. Índices por `[usuarioId, lida]` e `[usuarioId, criadoEm]`.
+- [x] **Disparos automáticos (`src/app/actions.ts`):** um helper `notificar` (createMany, deduplica, remove vazios e **exclui o ator** — ninguém é notificado do próprio ato) e `membrosDoSetor`. Regras: **nova OS** → todos do setor de destino; **mudança de status** → dono (solicitante); **responsável atribuído** → dono + técnico; **comentário/anexo** (`notificarMudancaOS`) → se quem age é o dono, avisa a equipe de destino (+ responsável); senão, avisa o dono. Falhas ao notificar nunca quebram a ação principal.
+- [x] **Actions de consulta:** `listarNotificacoes` (20 recentes, com código da OS), `contarNotificacoesNaoLidas`, `marcarNotificacaoLida` (filtro por dono), `marcarTodasNotificacoesLidas`.
+- [x] **Sino na navbar (`src/components/notificacoes-bell.tsx`):** ícone 🔔 com **badge de não lidas**, painel com lista (ícone colorido por tipo, ponto de não lida, tempo relativo), clique **marca como lida + navega** (nova OS → Painel do Setor; demais → Minhas OS), botão **"Marcar todas"**, fecha ao clicar fora. Atualiza sozinho via `useAutoRefresh` (mesmo polling da Fase 16), sem F5.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
