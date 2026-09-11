@@ -130,20 +130,23 @@ export function Navbar({ user }: NavbarProps) {
           {/* 3. CANTO DIREITO: Tema, Perfil, Logout e Hambúrguer (mobile) */}
           {/* ========================================================================= */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0 z-10">
-            {/* Sino de Notificações */}
-            <NotificacoesBell />
-
-            {/* Toggle de Tema */}
-            <ThemeToggle />
+            {/* Ações rápidas: Sino + Tema agrupados em um "segmented control".
+                No mobile o tema vai para o menu hambúrguer; o sino continua visível. */}
+            <div className="flex items-center gap-1 p-1 rounded-2xl bg-zinc-100/80 dark:bg-zinc-900/70 border border-zinc-200/80 dark:border-zinc-800/80">
+              <NotificacoesBell />
+              <div className="hidden md:block">
+                <ThemeToggle />
+              </div>
+            </div>
 
             {/* Divisor Vertical */}
-            <div className="hidden sm:block h-9 w-px bg-zinc-200 dark:bg-zinc-800" />
+            <div className="hidden md:block h-9 w-px bg-zinc-200 dark:bg-zinc-800" />
 
-            {/* Perfil do Usuário (leva à página /perfil) */}
+            {/* Perfil do Usuário (leva à página /perfil) — no mobile fica no menu */}
             <Link
               href="/perfil"
               title="Meu Perfil"
-              className={`flex items-center gap-3 rounded-2xl px-1.5 sm:px-2 py-1 transition-all hover:bg-zinc-100 dark:hover:bg-zinc-800/60 ${
+              className={`hidden md:flex items-center gap-3 rounded-2xl px-1.5 sm:px-2 py-1 transition-all hover:bg-zinc-100 dark:hover:bg-zinc-800/60 ${
                 isPerfil ? 'ring-2 ring-orange-500/40' : ''
               }`}
             >
@@ -236,6 +239,12 @@ export function Navbar({ user }: NavbarProps) {
               <span>{label}</span>
             </Link>
           ))}
+
+          {/* Tema (no mobile mora aqui, fora da barra apertada) */}
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/70">
+            <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Tema</span>
+            <ThemeToggle />
+          </div>
 
           {/* Sair */}
           <button

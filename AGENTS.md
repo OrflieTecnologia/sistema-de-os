@@ -183,6 +183,10 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Actions de consulta:** `listarNotificacoes` (20 recentes, com código da OS), `contarNotificacoesNaoLidas`, `marcarNotificacaoLida` (filtro por dono), `marcarTodasNotificacoesLidas`.
 - [x] **Sino na navbar (`src/components/notificacoes-bell.tsx`):** ícone 🔔 com **badge de não lidas**, painel com lista (ícone colorido por tipo, ponto de não lida, tempo relativo), clique **marca como lida + navega** (nova OS → Painel do Setor; demais → Minhas OS), botão **"Marcar todas"**, fecha ao clicar fora. Atualiza sozinho via `useAutoRefresh` (mesmo polling da Fase 16), sem F5.
 
+### Fase 19: Deep-link das Notificações & Reorganização da Navbar (Concluída)
+- [x] **Abrir a OS específica no clique:** a notificação navega para `/?view=<view>&os=<ordemId>`. Nova action `obterOrdemPorId` (`src/app/actions.ts`); o `OsListContainer` lê o `?os=` (`useSearchParams`), busca a OS na lista atual ou por id no servidor, **abre o modal de detalhes** e **limpa o parâmetro da URL** (`router.replace`, sem recarregar, com `ref`-guard para não reabrir).
+- [x] **Navbar menos apertada:** o **sino + tema** viraram um "segmented control" (pílula agrupada, botões sem borda própria). No **mobile**, a barra do topo mostra apenas **sino + hambúrguer**; o **tema** e o **perfil** passaram para dentro do menu hambúrguer (nova linha "Tema"). `ThemeToggle` e o botão do sino foram deixados sem borda para encaixar na pílula.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

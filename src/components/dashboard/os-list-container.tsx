@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo, useTransition, useRef } from 'react'
+import { useState, useMemo, useTransition, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   OrdemServicoDTO,
   DepartamentoDTO,
@@ -9,6 +10,7 @@ import {
   atualizarStatusOS,
   excluirOrdemServico,
   obterDetalhesOS,
+  obterOrdemPorId,
   adicionarComentario,
   adicionarAnexoOS,
   excluirComentario,
@@ -93,8 +95,11 @@ export function OsListContainer({
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 9
 
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   // Abre o modal de detalhes e carrega comentários + anexos
-  const openDetail = (os: OrdemServicoDTO) => {
+  const openDetail = useCallback((os: OrdemServicoDTO) => {
     setDetailOS(os)
     setDetailData(null)
     setNovoComentario('')
@@ -104,7 +109,32 @@ export function OsListContainer({
       setDetailData(d)
       setDetailLoading(false)
     })
-  }
+  }, [])
+
+  // Abertura direta de uma OS via ?os=<id> (usado pelas notificações).
+  // Busca localmente na lista atual e, se não achar, no servidor por id.
+  const osParam = searchParams.get('os')
+  const handledOsRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!osParam) {
+      handledOsRef.current = null
+      return
+    }
+    if (handledOsRef.current === osParam) return
+    handledOsRef.current = osParam
+
+    // Remove o ?os= da URL (sem recarregar) para não reabrir ao atualizar
+    const params = new URLSearchParams(Array.from(searchParams.entries()))
+    params.delete('os')
+    const qs = params.toString()
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false })
+
+    startTransition(async () => {
+      const local = ordens.find((o) => o.id === osParam)
+      const alvo = local ?? (await obterOrdemPorId(osParam))
+      if (alvo) openDetail(alvo)
+    })
+  }, [osParam, ordens, router, searchParams, openDetail])
   const closeDetail = () => {
     setDetailOS(null)
     setDetailData(null)

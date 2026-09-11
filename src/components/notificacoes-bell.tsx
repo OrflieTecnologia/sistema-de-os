@@ -91,7 +91,8 @@ export function NotificacoesBell() {
     startTransition(async () => {
       if (!n.lida) await marcarNotificacaoLida(n.id)
       const view = n.tipo === 'NOVA_OS' ? 'setor' : 'minhas'
-      router.push(`/?view=${view}`)
+      const url = n.ordemId ? `/?view=${view}&os=${n.ordemId}` : `/?view=${view}`
+      router.push(url)
       router.refresh()
       carregar()
     })
@@ -109,13 +110,13 @@ export function NotificacoesBell() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative flex items-center justify-center w-10 h-10 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all cursor-pointer"
+        className="relative flex items-center justify-center w-9 h-9 rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 hover:text-orange-600 dark:hover:text-orange-400 transition-all cursor-pointer"
         title="Notificações"
         aria-label="Notificações"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-[18px] h-[18px]" />
         {naoLidas > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm ring-2 ring-zinc-100 dark:ring-zinc-900">
             {naoLidas > 9 ? '9+' : naoLidas}
           </span>
         )}

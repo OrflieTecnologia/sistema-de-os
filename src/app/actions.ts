@@ -440,6 +440,43 @@ export async function listarOrdensServico(filterOptions?: {
   }
 }
 
+export async function obterOrdemPorId(id: string): Promise<OrdemServicoDTO | null> {
+  try {
+    if (!id) return null
+    const os = await prisma.ordemServico.findUnique({
+      where: { id },
+      include: {
+        solicitante: { select: { id: true, nome: true, email: true } },
+        responsavel: { select: { id: true, nome: true, email: true } },
+        departamentoOrigem: { select: { id: true, nome: true } },
+        departamentoDestino: { select: { id: true, nome: true } },
+      },
+    })
+    if (!os) return null
+    return {
+      id: os.id,
+      codigo: os.codigo,
+      titulo: os.titulo,
+      descricao: os.descricao,
+      status: os.status,
+      prioridade: os.prioridade,
+      solicitanteId: os.solicitanteId,
+      solicitante: os.solicitante,
+      responsavelId: os.responsavelId,
+      responsavel: os.responsavel,
+      departamentoOrigemId: os.departamentoOrigemId,
+      departamentoOrigem: os.departamentoOrigem,
+      departamentoDestinoId: os.departamentoDestinoId,
+      departamentoDestino: os.departamentoDestino,
+      criadoEm: os.criadoEm.toISOString(),
+      atualizadoEm: os.atualizadoEm.toISOString(),
+    }
+  } catch (error) {
+    console.error('Erro ao obter OS por id:', error)
+    return null
+  }
+}
+
 export async function atualizarStatusOS(
   id: string,
   novoStatus: StatusOS
