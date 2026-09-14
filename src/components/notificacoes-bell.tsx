@@ -10,12 +10,14 @@ import {
   MessageSquare,
   Paperclip,
   UserCheck,
+  Trash2,
 } from 'lucide-react'
 import {
   listarNotificacoes,
   contarNotificacoesNaoLidas,
   marcarNotificacaoLida,
   marcarTodasNotificacoesLidas,
+  limparNotificacoesLidas,
   NotificacaoDTO,
 } from '@/app/actions'
 import { useAutoRefresh } from '@/lib/use-auto-refresh'
@@ -105,6 +107,15 @@ export function NotificacoesBell() {
     })
   }
 
+  const limparLidas = () => {
+    startTransition(async () => {
+      await limparNotificacoesLidas()
+      carregar()
+    })
+  }
+
+  const temLidas = notifs.some((n) => n.lida)
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -165,6 +176,18 @@ export function NotificacoesBell() {
               ))
             )}
           </div>
+
+          {temLidas && (
+            <div className="border-t border-zinc-200 dark:border-zinc-800 px-4 py-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={limparLidas}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Limpar notificações lidas
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

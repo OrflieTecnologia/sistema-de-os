@@ -965,6 +965,20 @@ export async function marcarTodasNotificacoesLidas(): Promise<ActionResult> {
   }
 }
 
+export async function limparNotificacoesLidas(): Promise<ActionResult> {
+  try {
+    const user = await getSessionUser()
+    if (!user) return { success: false, message: 'Não autenticado.' }
+    const res = await prisma.notificacao.deleteMany({
+      where: { usuarioId: user.id, lida: true },
+    })
+    return { success: true, message: `${res.count} notificação(ões) removida(s).` }
+  } catch (error) {
+    console.error('Erro ao limpar notificações lidas:', error)
+    return { success: false, message: 'Falha ao limpar notificações.' }
+  }
+}
+
 // ----------------------------------------------------
 // AÇÕES DE COMENTÁRIOS E ANEXOS (PRINTS) DAS OS
 // ----------------------------------------------------
