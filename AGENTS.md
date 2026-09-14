@@ -188,6 +188,12 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Abrir a OS específica no clique:** a notificação navega para `/?view=<view>&os=<ordemId>`. Nova action `obterOrdemPorId` (`src/app/actions.ts`); o `OsListContainer` lê o `?os=` (`useSearchParams`), busca a OS na lista atual ou por id no servidor, **abre o modal de detalhes** e **limpa o parâmetro da URL** (`router.replace`, sem recarregar, com `ref`-guard para não reabrir).
 - [x] **Navbar menos apertada:** o **sino + tema** viraram um "segmented control" (pílula agrupada, botões sem borda própria). No **mobile**, a barra do topo mostra apenas **sino + hambúrguer**; o **tema** e o **perfil** passaram para dentro do menu hambúrguer (nova linha "Tema"). `ThemeToggle` e o botão do sino foram deixados sem borda para encaixar na pílula.
 
+### Fase 20: Segurança (CSP + Cabeçalhos) & Desativação de Usuários (Soft Delete) (Concluída)
+- [x] **Cabeçalhos de segurança (`next.config.ts`):** aplicados a todas as respostas via `headers()` — `Content-Security-Policy` (sob medida: `img-src` libera `data:`, `blob:` e o host do Supabase Storage; `script/style` com `unsafe-inline`; `unsafe-eval`/`ws` só em dev), `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`. Sem impacto visual; resolve os pendentes do securityheaders.com.
+- [x] **Desativação de usuários (soft delete) em vez de exclusão:** novo campo `Usuario.ativo Boolean @default(true)`. Desativar **preserva as OS e o histórico** (evita o cascade que apagaria as OS do solicitante). Action `definirAtivoUsuario(id, ativo)` (`requireAdmin`, trava para não desativar a própria conta).
+- [x] **Efeitos da desativação:** o usuário inativo (1) não loga (`getSessionUser`/`loginAction` recusam) e é deslogado na hora; (2) some das listagens operacionais e notificações (`listarUsuariosPorDepartamento`, `listarTodosUsuarios`, `membrosDoSetor` filtram `ativo: true`). Continua visível **apenas** no painel de Administração (RBAC), com badge "Inativo" e botão "Reativar".
+- [x] **UI (RBAC, `departamentos-manager.tsx`):** botão **Desativar** abre um **modal de confirmação** (avisa o que acontece e que as OS são preservadas); linha inativa fica cinza com badge "Inativo", controles de setor/papel desabilitados e botão **Reativar** (reativação direta). Ordena inativos ao fim da lista.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

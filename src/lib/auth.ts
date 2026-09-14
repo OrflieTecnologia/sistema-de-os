@@ -31,7 +31,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       include: { departamento: true },
     })
 
-    if (!usuario || !usuario.departamento) {
+    // Usuário desativado (soft delete) perde o acesso imediatamente.
+    if (!usuario || !usuario.departamento || !usuario.ativo) {
       return null
     }
 

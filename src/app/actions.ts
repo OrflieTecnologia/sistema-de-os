@@ -31,6 +31,7 @@ export type UsuarioAdminDTO = {
   nome: string
   email: string
   role: 'ADMIN' | 'MEMBRO'
+  ativo: boolean
   departamentoId: string
   departamento: {
     nome: string
@@ -170,7 +171,7 @@ export async function listarUsuariosPorDepartamento(departamentoId: string): Pro
   try {
     if (!departamentoId) return []
     const usuarios = await prisma.usuario.findMany({
-      where: { departamentoId },
+      where: { departamentoId, ativo: true },
       orderBy: { nome: 'asc' },
       select: {
         id: true,
@@ -684,6 +685,7 @@ export async function excluirOrdemServico(id: string): Promise<ActionResult> {
 export async function listarTodosUsuarios(): Promise<UsuarioDTO[]> {
   try {
     const usuarios = await prisma.usuario.findMany({
+      where: { ativo: true },
       orderBy: { nome: 'asc' },
       select: {
         id: true,
@@ -704,12 +706,13 @@ export async function listarUsuariosParaAdmin(): Promise<UsuarioAdminDTO[]> {
   try {
     await requireAdmin()
     const usuarios = await prisma.usuario.findMany({
-      orderBy: { nome: 'asc' },
+      orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
       select: {
         id: true,
         nome: true,
         email: true,
         role: true,
+        ativo: true,
         departamentoId: true,
         departamento: {
           select: { nome: true },
@@ -722,6 +725,7 @@ export async function listarUsuariosParaAdmin(): Promise<UsuarioAdminDTO[]> {
       nome: u.nome,
       email: u.email,
       role: u.role as 'ADMIN' | 'MEMBRO',
+      ativo: u.ativo,
       departamentoId: u.departamentoId,
       departamento: { nome: u.departamento.nome },
       criadoEm: u.criadoEm?.toISOString(),
@@ -807,6 +811,39 @@ export async function alterarSetorUsuario(
   }
 }
 
+export async function definirAtivoUsuario(
+  usuarioId: string,
+  ativo: boolean
+): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin()
+    if (!usuarioId) return { success: false, message: 'Usuário não informado.' }
+
+    // Trava: ninguém pode desativar a própria conta (evita se trancar para fora).
+    if (!ativo && admin.id === usuarioId) {
+      return { success: false, message: 'Você não pode desativar a sua própria conta.' }
+    }
+
+    const usuario = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { ativo },
+      select: { nome: true },
+    })
+
+    revalidatePath('/departamentos')
+    revalidatePath('/')
+    return {
+      success: true,
+      message: ativo
+        ? `${usuario.nome} foi reativado(a) e volta a ter acesso.`
+        : `${usuario.nome} foi desativado(a). As OS dele(a) foram preservadas.`,
+    }
+  } catch (error) {
+    console.error('Erro ao alterar ativo do usuário:', error)
+    return { success: false, message: 'Falha ao atualizar o status do colaborador.' }
+  }
+}
+
 // ----------------------------------------------------
 // NOTIFICAÇÕES
 // ----------------------------------------------------
@@ -822,7 +859,7 @@ const STATUS_LABEL: Record<string, string> = {
 /** IDs dos usuários de um setor (para notificar a equipe de destino). */
 async function membrosDoSetor(departamentoId: string): Promise<string[]> {
   const membros = await prisma.usuario.findMany({
-    where: { departamentoId },
+    where: { departamentoId, ativo: true },
     select: { id: true },
   })
   return membros.map((m) => m.id)

@@ -8,6 +8,7 @@ import {
   alternarStatusDepartamento,
   alternarRoleUsuario,
   alterarSetorUsuario,
+  definirAtivoUsuario,
 } from '@/app/actions'
 import {
   Building2,
@@ -27,6 +28,9 @@ import {
   UserCheck,
   Filter,
   ChevronDown,
+  Ban,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-react'
 
 interface DepartamentosManagerProps {
@@ -54,6 +58,9 @@ export function DepartamentosManager({
   const [userDepFilter, setUserDepFilter] = useState<string>('TODOS')
   const [userPage, setUserPage] = useState(1)
   const usersPerPage = 6
+
+  // Modal de confirmação de desativação de usuário
+  const [desativarAlvo, setDesativarAlvo] = useState<UsuarioAdminDTO | null>(null)
 
   // ----------------------------------------------------
   // Estados para Gestão de Departamentos
@@ -132,6 +139,19 @@ export function DepartamentosManager({
       } else {
         setFeedback({ type: 'error', message: res.message || 'Erro ao alterar o setor.' })
       }
+    })
+  }
+
+  const handleSetAtivo = (usuarioId: string, ativo: boolean) => {
+    startTransition(async () => {
+      const res = await definirAtivoUsuario(usuarioId, ativo)
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message || 'Status atualizado!' })
+        setTimeout(() => setFeedback(null), 3500)
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Erro ao atualizar o status.' })
+      }
+      setDesativarAlvo(null)
     })
   }
 
@@ -392,7 +412,9 @@ export function DepartamentosManager({
                     return (
                       <tr
                         key={user.id}
-                        className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                        className={`hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors ${
+                          !user.ativo ? 'opacity-60' : ''
+                        }`}
                       >
                         {/* Colaborador (Avatar + Nome + Email) */}
                         <td className="py-4 px-5">
@@ -414,6 +436,11 @@ export function DepartamentosManager({
                                     Você
                                   </span>
                                 )}
+                                {!user.ativo && (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700">
+                                    Inativo
+                                  </span>
+                                )}
                               </div>
                               <span className="text-xs text-zinc-400 font-normal">
                                 {user.email}
@@ -429,7 +456,7 @@ export function DepartamentosManager({
                             <select
                               value={user.departamentoId}
                               onChange={(e) => handleDepChange(user.id, e.target.value, user.departamentoId)}
-                              disabled={isPending}
+                              disabled={isPending || !user.ativo}
                               title="Alterar setor do colaborador"
                               className="appearance-none pl-8 pr-8 py-1.5 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-orange-400 dark:hover:border-orange-500/60 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                             >
@@ -466,35 +493,63 @@ export function DepartamentosManager({
                           </span>
                         </td>
 
-                        {/* Ação de Troca de Papel */}
+                        {/* Ações: Troca de Papel + Desativar/Reativar */}
                         <td className="py-4 px-6 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleRoleChange(user.id, isAdmin ? 'MEMBRO' : 'ADMIN')}
-                            disabled={isPending}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs border ${
-                              isAdmin
-                                ? 'bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-700 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 border-zinc-300 dark:border-zinc-700 hover:border-rose-300'
-                                : 'bg-orange-50 dark:bg-orange-950/80 hover:bg-orange-600 text-orange-700 dark:text-orange-400 hover:text-white border-orange-200 dark:border-orange-800 hover:border-orange-600'
-                            }`}
-                            title={
-                              isAdmin
-                                ? 'Rebaixar para Membro Comum'
-                                : 'Promover a Administrador Geral'
-                            }
-                          >
-                            {isAdmin ? (
-                              <>
-                                <UserCheck className="w-3.5 h-3.5" />
-                                <span>Tornar Membro</span>
-                              </>
+                          <div className="inline-flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRoleChange(user.id, isAdmin ? 'MEMBRO' : 'ADMIN')}
+                              disabled={isPending || !user.ativo}
+                              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs border disabled:opacity-50 disabled:cursor-not-allowed ${
+                                isAdmin
+                                  ? 'bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-700 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 border-zinc-300 dark:border-zinc-700 hover:border-rose-300'
+                                  : 'bg-orange-50 dark:bg-orange-950/80 hover:bg-orange-600 text-orange-700 dark:text-orange-400 hover:text-white border-orange-200 dark:border-orange-800 hover:border-orange-600'
+                              }`}
+                              title={
+                                isAdmin
+                                  ? 'Rebaixar para Membro Comum'
+                                  : 'Promover a Administrador Geral'
+                              }
+                            >
+                              {isAdmin ? (
+                                <>
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  <span>Tornar Membro</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Shield className="w-3.5 h-3.5" />
+                                  <span>Tornar Admin</span>
+                                </>
+                              )}
+                            </button>
+
+                            {user.ativo ? (
+                              !isSelf && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDesativarAlvo(user)}
+                                  disabled={isPending}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs border bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-600 text-zinc-700 dark:text-zinc-300 hover:text-white border-zinc-300 dark:border-zinc-700 hover:border-rose-600 disabled:opacity-60"
+                                  title="Desativar colaborador (as OS dele são preservadas)"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                  <span>Desativar</span>
+                                </button>
+                              )
                             ) : (
-                              <>
-                                <Shield className="w-3.5 h-3.5" />
-                                <span>Tornar Admin</span>
-                              </>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAtivo(user.id, true)}
+                                disabled={isPending}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs border bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-400 hover:text-white border-emerald-200 dark:border-emerald-800 hover:border-emerald-600 disabled:opacity-60"
+                                title="Reativar colaborador"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Reativar</span>
+                              </button>
                             )}
-                          </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -759,6 +814,66 @@ export function DepartamentosManager({
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmação de desativação de colaborador */}
+      {desativarAlvo && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !isPending && setDesativarAlvo(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-zinc-900 dark:text-white">Desativar colaborador</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">Esta ação pode ser revertida depois (Reativar).</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 p-3">
+              <p className="font-semibold text-sm text-zinc-900 dark:text-white">{desativarAlvo.nome}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{desativarAlvo.email}</p>
+            </div>
+
+            <ul className="text-sm text-zinc-600 dark:text-zinc-300 space-y-1.5">
+              <li className="flex gap-2">
+                <span className="text-rose-500 font-bold">•</span> Perde o acesso ao sistema (não consegue mais entrar).
+              </li>
+              <li className="flex gap-2">
+                <span className="text-rose-500 font-bold">•</span> Some das listas, seletores de técnico e notificações.
+              </li>
+              <li className="flex gap-2">
+                <span className="text-emerald-500 font-bold">•</span> As OS e o histórico dele(a) <strong>são preservados</strong>.
+              </li>
+            </ul>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDesativarAlvo(null)}
+                disabled={isPending}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetAtivo(desativarAlvo.id, false)}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                Desativar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

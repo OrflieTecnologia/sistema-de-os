@@ -37,6 +37,10 @@ export async function loginAction(
       return { success: false, error: 'E-mail ou senha incorretos.' }
     }
 
+    if (!usuario.ativo) {
+      return { success: false, error: 'Sua conta está desativada. Fale com um administrador.' }
+    }
+
     const cookieStore = await cookies()
     cookieStore.set(SESSION_COOKIE, usuario.id, {
       path: '/',
@@ -119,7 +123,7 @@ export async function switchQuickAccountAction(email: string): Promise<void> {
       where: { email },
     })
 
-    if (usuario) {
+    if (usuario && usuario.ativo) {
       const cookieStore = await cookies()
       cookieStore.set(SESSION_COOKIE, usuario.id, {
         path: '/',

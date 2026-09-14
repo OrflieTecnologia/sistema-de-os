@@ -35,6 +35,7 @@ model Usuario {
   email             String         @unique
   senha             String
   fotoUrl           String?
+  ativo             Boolean        @default(true)
   role              UserRole       @default(MEMBRO)
   departamentoId    String
   departamento      Departamento   @relation(fields: [departamentoId], references: [id], onDelete: Restrict)

@@ -1,18 +1,47 @@
 import type { NextConfig } from "next";
 
-// Cabeçalhos de segurança aplicados a todas as respostas.
-// São proteções reais (transporte, clickjacking, sniffing, vazamento de referer
-// e políticas de permissão), sem qualquer impacto visual no app.
+// Origem do Supabase (Storage serve as imagens via URL assinada). Público, não é segredo.
+const supabaseOrigin = (() => {
+  try {
+    return process.env.SUPABASE_URL
+      ? new URL(process.env.SUPABASE_URL).origin
+      : "https://tqkpaqyxptcvojiomxbg.supabase.co";
+  } catch {
+    return "https://tqkpaqyxptcvojiomxbg.supabase.co";
+  }
+})();
+
+const isDev = process.env.NODE_ENV !== "production";
+
+// script-src: em produção não precisa de eval; em dev o HMR usa eval.
+const scriptSrc = ["'self'", "'unsafe-inline'"];
+if (isDev) scriptSrc.push("'unsafe-eval'");
+
+// connect-src: server actions (mesma origem) + Supabase; em dev libera websocket do HMR.
+const connectSrc = ["'self'", supabaseOrigin];
+if (isDev) connectSrc.push("ws:", "wss:");
+
+// Content-Security-Policy sob medida para o app (Next.js + Tailwind + Supabase Storage).
+const csp = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  `img-src 'self' data: blob: ${supabaseOrigin}`,
+  "font-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  `script-src ${scriptSrc.join(" ")}`,
+  `connect-src ${connectSrc.join(" ")}`,
+].join("; ");
+
+// Cabeçalhos de segurança aplicados a todas as respostas (sem impacto visual).
 const securityHeaders = [
-  // Impede o navegador de "adivinhar" (sniff) o tipo do conteúdo.
+  { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Impede que o site seja embutido em iframes de terceiros (anti-clickjacking).
   { key: "X-Frame-Options", value: "DENY" },
-  // Não vaza a URL completa (com query) para sites externos.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Força HTTPS neste domínio por 2 anos (Vercel já serve por HTTPS).
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-  // Desliga APIs sensíveis que o sistema não usa.
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
