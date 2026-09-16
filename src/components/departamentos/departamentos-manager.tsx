@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef, useMemo } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import {
   DepartamentoDTO,
   UsuarioAdminDTO,
@@ -55,7 +55,11 @@ export function DepartamentosManager({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   )
-  const formRef = useRef<HTMLFormElement>(null)
+
+  // Modal de criação de novo departamento
+  const [showNovoSetor, setShowNovoSetor] = useState(false)
+  const [novoSetorNome, setNovoSetorNome] = useState('')
+  const [novoSetorErro, setNovoSetorErro] = useState<string | null>(null)
 
   // ----------------------------------------------------
   // Estados para Gestão de Usuários
@@ -105,16 +109,30 @@ export function DepartamentosManager({
   // ----------------------------------------------------
   // Ações de Departamentos
   // ----------------------------------------------------
-  async function handleCreate(formData: FormData) {
-    setFeedback(null)
+  const abrirNovoSetor = () => {
+    setNovoSetorNome('')
+    setNovoSetorErro(null)
+    setShowNovoSetor(true)
+  }
+
+  const handleCriarSetor = () => {
+    setNovoSetorErro(null)
+    const nome = novoSetorNome.trim()
+    if (!nome) {
+      setNovoSetorErro('Informe o nome do departamento.')
+      return
+    }
     startTransition(async () => {
-      const res = await criarDepartamento(formData)
+      const fd = new FormData()
+      fd.set('nome', nome)
+      const res = await criarDepartamento(fd)
       if (res.success) {
         setFeedback({ type: 'success', message: res.message || 'Departamento cadastrado com sucesso!' })
-        formRef.current?.reset()
         setTimeout(() => setFeedback(null), 3000)
+        setShowNovoSetor(false)
+        setNovoSetorNome('')
       } else {
-        setFeedback({ type: 'error', message: res.message || 'Erro ao cadastrar departamento.' })
+        setNovoSetorErro(res.message || 'Erro ao cadastrar departamento.')
       }
     })
   }
@@ -664,46 +682,6 @@ export function DepartamentosManager({
       {/* 3. ÁREA DE GESTÃO DE DEPARTAMENTOS (CADASTRO + LISTAGEM COM BUSCA/PAGINAÇÃO) */}
       {/* ========================================================================= */}
       <div className="space-y-6">
-        {/* Card de Cadastro Rápido de Setor */}
-        <div className="bg-white/90 dark:bg-zinc-900/90 rounded-3xl border border-zinc-200/90 dark:border-zinc-800/90 p-5 sm:p-6 shadow-xs space-y-4">
-          <div>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-              <PlusCircle className="w-5 h-5 text-orange-500" />
-              Cadastrar Novo Departamento
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Adicione novos setores corporativos da empresa para direcionamento e abertura de chamados
-            </p>
-          </div>
-
-          <form ref={formRef} action={handleCreate} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              name="nome"
-              required
-              placeholder="Nome do Departamento (Ex: Jurídico, Logística, Atendimento...)"
-              className="flex-1 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
-            />
-            <button
-              type="submit"
-              disabled={isPending}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-semibold shadow-md shadow-orange-600/20 hover:shadow-orange-600/30 active:scale-98 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Salvando...</span>
-                </>
-              ) : (
-                <>
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Salvar Setor</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
         {/* Tabela de Gestão de Departamentos com Busca e Paginação */}
         <div className="bg-white/90 dark:bg-zinc-900/90 rounded-3xl border border-zinc-200/90 dark:border-zinc-800/90 shadow-xs overflow-hidden p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-4">
@@ -716,9 +694,18 @@ export function DepartamentosManager({
                 Controle de status e volumetria de ordens de serviço por departamento
               </p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 self-start sm:self-auto">
-              {departamentos.length} departamentos
-            </span>
+            <div className="flex items-center gap-3 self-start sm:self-auto">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                {departamentos.length} departamentos
+              </span>
+              <button
+                type="button"
+                onClick={abrirNovoSetor}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-orange-600/20 hover:shadow-orange-600/30 active:scale-98 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <PlusCircle className="w-4 h-4" /> Novo Departamento
+              </button>
+            </div>
           </div>
 
           {/* Busca e Filtro de Departamentos */}
@@ -1098,6 +1085,83 @@ export function DepartamentosManager({
               >
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                 Cadastrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de criação de novo departamento */}
+      {showNovoSetor && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !isPending && setShowNovoSetor(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-900 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-zinc-900 dark:text-white">Novo Departamento</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Adicione um novo setor corporativo</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNovoSetor(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {novoSetorErro && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl px-3 py-2">
+                <AlertCircle className="w-4 h-4 shrink-0" /> {novoSetorErro}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">
+                NOME DO DEPARTAMENTO *
+              </label>
+              <input
+                type="text"
+                value={novoSetorNome}
+                onChange={(e) => setNovoSetorNome(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCriarSetor()
+                }}
+                placeholder="Ex: Jurídico, Logística, Atendimento..."
+                className="w-full bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
+              />
+              <p className="text-[11px] text-zinc-400">
+                O setor já entra ativo e disponível para direcionar chamados.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowNovoSetor(false)}
+                disabled={isPending}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCriarSetor}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 shadow-md shadow-orange-600/20 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+                Salvar Setor
               </button>
             </div>
           </div>

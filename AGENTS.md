@@ -197,6 +197,7 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 ### Fase 21: Cadastro de Novo Colaborador (Concluída)
 - [x] **Botão "Novo Colaborador"** no cabeçalho do painel RBAC abre um **modal** com nome, e-mail, setor, papel (Membro/Admin) e senha inicial — com **"Gerar senha aleatória"**, mostrar/ocultar e copiar (`departamentos-manager.tsx`).
 - [x] **Action `criarUsuario`** (`src/app/actions.ts`): só ADMIN (`requireAdmin`), valida e-mail único/válido e senha mín. 6, faz `bcrypt.hash`. Cria o usuário já **ativo**; ele pode trocar a senha depois no Perfil. Diferente do `cadastroAction` (auto-signup), aqui o admin cria sem logar como o novo usuário.
+- [x] **Cadastro de departamento vira modal:** o antigo card inline "Cadastrar Novo Departamento" foi substituído por um botão **"Novo Departamento"** no cabeçalho de "Setores Cadastrados", abrindo um **modal** (mesmo padrão do Novo Colaborador). Reaproveita a action `criarDepartamento`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
