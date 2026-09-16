@@ -844,6 +844,69 @@ export async function definirAtivoUsuario(
   }
 }
 
+export async function criarUsuario(dados: {
+  nome: string
+  email: string
+  senha: string
+  departamentoId: string
+  role: 'ADMIN' | 'MEMBRO'
+}): Promise<ActionResult<UsuarioAdminDTO>> {
+  try {
+    await requireAdmin()
+
+    const nome = dados.nome?.trim()
+    const email = dados.email?.trim().toLowerCase()
+    const senha = dados.senha?.trim()
+    const departamentoId = dados.departamentoId?.trim()
+    const role = dados.role === 'ADMIN' ? UserRole.ADMIN : UserRole.MEMBRO
+
+    if (!nome || !email || !senha || !departamentoId) {
+      return { success: false, message: 'Preencha nome, e-mail, senha e setor.' }
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { success: false, message: 'Informe um e-mail válido.' }
+    }
+    if (senha.length < 6) {
+      return { success: false, message: 'A senha deve ter no mínimo 6 caracteres.' }
+    }
+
+    const dep = await prisma.departamento.findUnique({
+      where: { id: departamentoId },
+      select: { id: true, nome: true },
+    })
+    if (!dep) return { success: false, message: 'Setor informado não existe.' }
+
+    const existe = await prisma.usuario.findUnique({ where: { email }, select: { id: true } })
+    if (existe) return { success: false, message: 'Já existe um usuário com este e-mail.' }
+
+    const senhaHash = await bcrypt.hash(senha, 10)
+    const u = await prisma.usuario.create({
+      data: { nome, email, senha: senhaHash, departamentoId, role, ativo: true },
+      select: { id: true, nome: true, email: true, role: true, ativo: true, departamentoId: true, criadoEm: true },
+    })
+
+    revalidatePath('/departamentos')
+    revalidatePath('/')
+    return {
+      success: true,
+      message: `${u.nome} cadastrado(a) com sucesso!`,
+      data: {
+        id: u.id,
+        nome: u.nome,
+        email: u.email,
+        role: u.role as 'ADMIN' | 'MEMBRO',
+        ativo: u.ativo,
+        departamentoId: u.departamentoId,
+        departamento: { nome: dep.nome },
+        criadoEm: u.criadoEm?.toISOString(),
+      },
+    }
+  } catch (error) {
+    console.error('Erro ao criar usuário:', error)
+    return { success: false, message: 'Falha ao cadastrar o colaborador.' }
+  }
+}
+
 // ----------------------------------------------------
 // NOTIFICAÇÕES
 // ----------------------------------------------------

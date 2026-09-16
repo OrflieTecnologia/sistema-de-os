@@ -194,6 +194,10 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Efeitos da desativação:** o usuário inativo (1) não loga (`getSessionUser`/`loginAction` recusam) e é deslogado na hora; (2) some das listagens operacionais e notificações (`listarUsuariosPorDepartamento`, `listarTodosUsuarios`, `membrosDoSetor` filtram `ativo: true`). Continua visível **apenas** no painel de Administração (RBAC), com badge "Inativo" e botão "Reativar".
 - [x] **UI (RBAC, `departamentos-manager.tsx`):** botão **Desativar** abre um **modal de confirmação** (avisa o que acontece e que as OS são preservadas); linha inativa fica cinza com badge "Inativo", controles de setor/papel desabilitados e botão **Reativar** (reativação direta). Ordena inativos ao fim da lista.
 
+### Fase 21: Cadastro de Novo Colaborador (Concluída)
+- [x] **Botão "Novo Colaborador"** no cabeçalho do painel RBAC abre um **modal** com nome, e-mail, setor, papel (Membro/Admin) e senha inicial — com **"Gerar senha aleatória"**, mostrar/ocultar e copiar (`departamentos-manager.tsx`).
+- [x] **Action `criarUsuario`** (`src/app/actions.ts`): só ADMIN (`requireAdmin`), valida e-mail único/válido e senha mín. 6, faz `bcrypt.hash`. Cria o usuário já **ativo**; ele pode trocar a senha depois no Perfil. Diferente do `cadastroAction` (auto-signup), aqui o admin cria sem logar como o novo usuário.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

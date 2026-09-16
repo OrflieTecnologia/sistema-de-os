@@ -9,6 +9,7 @@ import {
   alternarRoleUsuario,
   alterarSetorUsuario,
   definirAtivoUsuario,
+  criarUsuario,
 } from '@/app/actions'
 import {
   Building2,
@@ -31,6 +32,12 @@ import {
   Ban,
   RotateCcw,
   AlertTriangle,
+  UserPlus,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Copy,
+  Mail,
 } from 'lucide-react'
 
 interface DepartamentosManagerProps {
@@ -61,6 +68,16 @@ export function DepartamentosManager({
 
   // Modal de confirmação de desativação de usuário
   const [desativarAlvo, setDesativarAlvo] = useState<UsuarioAdminDTO | null>(null)
+
+  // Modal de criação de novo colaborador
+  const [showNovoUsuario, setShowNovoUsuario] = useState(false)
+  const [novoNome, setNovoNome] = useState('')
+  const [novoEmail, setNovoEmail] = useState('')
+  const [novaSenha, setNovaSenha] = useState('')
+  const [novoDep, setNovoDep] = useState('')
+  const [novoRole, setNovoRole] = useState<'MEMBRO' | 'ADMIN'>('MEMBRO')
+  const [showSenha, setShowSenha] = useState(false)
+  const [novoErro, setNovoErro] = useState<string | null>(null)
 
   // ----------------------------------------------------
   // Estados para Gestão de Departamentos
@@ -152,6 +169,51 @@ export function DepartamentosManager({
         setFeedback({ type: 'error', message: res.message || 'Erro ao atualizar o status.' })
       }
       setDesativarAlvo(null)
+    })
+  }
+
+  const abrirNovoUsuario = () => {
+    setNovoNome('')
+    setNovoEmail('')
+    setNovaSenha('')
+    setNovoDep(departamentos[0]?.id || '')
+    setNovoRole('MEMBRO')
+    setShowSenha(false)
+    setNovoErro(null)
+    setShowNovoUsuario(true)
+  }
+
+  const gerarSenha = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%'
+    let s = ''
+    for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)]
+    setNovaSenha(s)
+    setShowSenha(true)
+  }
+
+  const copiarSenha = () => {
+    if (novaSenha) {
+      navigator.clipboard?.writeText(novaSenha).catch(() => {})
+    }
+  }
+
+  const handleCriarUsuario = () => {
+    setNovoErro(null)
+    startTransition(async () => {
+      const res = await criarUsuario({
+        nome: novoNome,
+        email: novoEmail,
+        senha: novaSenha,
+        departamentoId: novoDep,
+        role: novoRole,
+      })
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message || 'Colaborador cadastrado!' })
+        setTimeout(() => setFeedback(null), 4000)
+        setShowNovoUsuario(false)
+      } else {
+        setNovoErro(res.message || 'Falha ao cadastrar o colaborador.')
+      }
     })
   }
 
@@ -315,9 +377,18 @@ export function DepartamentosManager({
               Gerencie permissões de acesso do sistema, alternando entre Administrador e Membro Comum
             </p>
           </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 self-start sm:self-auto">
-            {usuarios.length} usuários cadastrados
-          </span>
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
+              {usuarios.length} usuários cadastrados
+            </span>
+            <button
+              type="button"
+              onClick={abrirNovoUsuario}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold shadow-md shadow-orange-600/20 hover:shadow-orange-600/30 active:scale-98 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4" /> Novo Colaborador
+            </button>
+          </div>
         </div>
 
         {/* Barra de Filtros e Busca de Usuários */}
@@ -869,6 +940,164 @@ export function DepartamentosManager({
               >
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
                 Desativar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de criação de novo colaborador */}
+      {showNovoUsuario && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !isPending && setShowNovoUsuario(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-900 flex items-center justify-center shrink-0">
+                  <UserPlus className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-zinc-900 dark:text-white">Novo Colaborador</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Cadastre um novo usuário do sistema</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNovoUsuario(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {novoErro && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl px-3 py-2">
+                <AlertCircle className="w-4 h-4 shrink-0" /> {novoErro}
+              </div>
+            )}
+
+            {/* Nome */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">NOME COMPLETO *</label>
+              <input
+                type="text"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                placeholder="Ex: João da Silva"
+                className="w-full bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
+              />
+            </div>
+
+            {/* E-mail */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">E-MAIL CORPORATIVO *</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                <input
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  placeholder="nome@orflie.com"
+                  className="w-full pl-9 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Setor + Papel */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">SETOR *</label>
+                <select
+                  value={novoDep}
+                  onChange={(e) => setNovoDep(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer"
+                >
+                  {departamentos.map((d) => (
+                    <option key={`novo-dep-${d.id}`} value={d.id}>
+                      {d.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">PAPEL</label>
+                <select
+                  value={novoRole}
+                  onChange={(e) => setNovoRole(e.target.value as 'MEMBRO' | 'ADMIN')}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer"
+                >
+                  <option value="MEMBRO">Membro</option>
+                  <option value="ADMIN">Administrador</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Senha */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">SENHA INICIAL *</label>
+              <div className="relative">
+                <input
+                  type={showSenha ? 'text' : 'password'}
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  placeholder="mín. 6 caracteres"
+                  className="w-full pr-16 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowSenha((s) => !s)}
+                    title={showSenha ? 'Ocultar' : 'Mostrar'}
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 cursor-pointer"
+                  >
+                    {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  {novaSenha && (
+                    <button
+                      type="button"
+                      onClick={copiarSenha}
+                      title="Copiar senha"
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={gerarSenha}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" /> Gerar senha aleatória
+                </button>
+                <span className="text-[11px] text-zinc-400">Trocável depois no Perfil</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowNovoUsuario(false)}
+                disabled={isPending}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCriarUsuario}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 shadow-md shadow-orange-600/20 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                Cadastrar
               </button>
             </div>
           </div>
