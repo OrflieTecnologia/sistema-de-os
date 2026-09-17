@@ -199,6 +199,12 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Action `criarUsuario`** (`src/app/actions.ts`): só ADMIN (`requireAdmin`), valida e-mail único/válido e senha mín. 6, faz `bcrypt.hash`. Cria o usuário já **ativo**; ele pode trocar a senha depois no Perfil. Diferente do `cadastroAction` (auto-signup), aqui o admin cria sem logar como o novo usuário.
 - [x] **Cadastro de departamento vira modal:** o antigo card inline "Cadastrar Novo Departamento" foi substituído por um botão **"Novo Departamento"** no cabeçalho de "Setores Cadastrados", abrindo um **modal** (mesmo padrão do Novo Colaborador). Reaproveita a action `criarDepartamento`.
 
+### Fase 22: Blindagem da Sessão (Cookie Assinado) & Remoção de Login sem Senha (Concluída)
+- [x] **Cookie de sessão assinado com HMAC (`src/lib/auth.ts`):** antes o cookie era o `id` do usuário "cru" — e como os IDs aparecem na UI (ex.: `value` do seletor de técnico), qualquer usuário logado podia forjar o cookie de um admin e escalar privilégio. Agora o cookie é `"<userId>.<hmac>"` (`assinarSessao`), validado em `verificarSessao` (comparação `timingSafeEqual`) antes de confiar no ID. Segredo: `SESSION_SECRET` (com fallback para `SERVICE_ROLE_KEY`, já presente em local/prod) — nunca vai ao client.
+- [x] **`loginAction`/`cadastroAction`** passam a gravar o cookie assinado. Efeito único no deploy: sessões antigas (cookie cru) ficam inválidas → todos reautenticam uma vez.
+- [x] **Removido o `switchQuickAccountAction`** (login em qualquer conta só pelo e-mail, **sem senha**) e o componente órfão `role-switcher.tsx` que o usava (código morto + risco).
+- [x] **Verificado:** cookie forjado (só o ID), assinatura adulterada e ID trocado com assinatura de outro → todos **rejeitados (307)**; cookie assinado válido → **aceito (200)**.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

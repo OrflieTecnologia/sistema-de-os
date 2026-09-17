@@ -4,7 +4,7 @@ import { prisma, UserRole } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
-import { SESSION_COOKIE } from '@/lib/auth'
+import { SESSION_COOKIE, assinarSessao } from '@/lib/auth'
 
 export type AuthActionResult = {
   success: boolean
@@ -42,7 +42,7 @@ export async function loginAction(
     }
 
     const cookieStore = await cookies()
-    cookieStore.set(SESSION_COOKIE, usuario.id, {
+    cookieStore.set(SESSION_COOKIE, assinarSessao(usuario.id), {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -96,7 +96,7 @@ export async function cadastroAction(
     })
 
     const cookieStore = await cookies()
-    cookieStore.set(SESSION_COOKIE, novoUsuario.id, {
+    cookieStore.set(SESSION_COOKIE, assinarSessao(novoUsuario.id), {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -115,27 +115,4 @@ export async function logoutAction(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete(SESSION_COOKIE)
   redirect('/login')
-}
-
-export async function switchQuickAccountAction(email: string): Promise<void> {
-  try {
-    const usuario = await prisma.usuario.findUnique({
-      where: { email },
-    })
-
-    if (usuario && usuario.ativo) {
-      const cookieStore = await cookies()
-      cookieStore.set(SESSION_COOKIE, usuario.id, {
-        path: '/',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-      })
-    }
-  } catch (error) {
-    console.error('Erro ao alternar conta rápida:', error)
-  }
-
-  redirect('/')
 }

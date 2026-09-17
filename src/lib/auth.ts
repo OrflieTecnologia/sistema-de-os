@@ -1,8 +1,40 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { prisma, UserRole } from './prisma'
 
 export type { UserRole }
+
+// Segredo para assinar a sessão. Usa SESSION_SECRET quando definido; senão
+// cai na SERVICE_ROLE_KEY (já presente em local e produção). Nunca vai ao client.
+function sessionSecret(): string {
+  return (
+    process.env.SESSION_SECRET ||
+    process.env.SERVICE_ROLE_KEY ||
+    'orflie-dev-secret-inseguro-trocar'
+  )
+}
+
+/** Gera o token de sessão assinado: "<userId>.<hmac>". */
+export function assinarSessao(userId: string): string {
+  const sig = createHmac('sha256', sessionSecret()).update(userId).digest('base64url')
+  return `${userId}.${sig}`
+}
+
+/** Valida o token assinado e retorna o userId, ou null se inválido/adulterado. */
+export function verificarSessao(token: string | undefined | null): string | null {
+  if (!token) return null
+  const i = token.lastIndexOf('.')
+  if (i <= 0) return null
+  const userId = token.slice(0, i)
+  const sig = token.slice(i + 1)
+  const esperado = createHmac('sha256', sessionSecret()).update(userId).digest('base64url')
+  const a = Buffer.from(sig)
+  const b = Buffer.from(esperado)
+  if (a.length !== b.length) return null
+  if (!timingSafeEqual(a, b)) return null
+  return userId
+}
 
 export type SessionUser = {
   id: string
@@ -19,15 +51,16 @@ export const SESSION_COOKIE = 'orflie_session'
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     const cookieStore = await cookies()
-    const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value
+    const token = cookieStore.get(SESSION_COOKIE)?.value
 
-    if (!sessionCookie) {
+    // Valida a assinatura do cookie antes de confiar no ID (evita falsificação).
+    const userId = verificarSessao(token)
+    if (!userId) {
       return null
     }
 
-    // O cookie guarda o ID do usuário
     const usuario = await prisma.usuario.findUnique({
-      where: { id: sessionCookie },
+      where: { id: userId },
       include: { departamento: true },
     })
 
