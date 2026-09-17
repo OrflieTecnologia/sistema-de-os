@@ -10,6 +10,7 @@ import {
   alterarSetorUsuario,
   definirAtivoUsuario,
   criarUsuario,
+  redefinirSenhaUsuario,
 } from '@/app/actions'
 import {
   Building2,
@@ -38,6 +39,7 @@ import {
   RefreshCw,
   Copy,
   Mail,
+  Key,
 } from 'lucide-react'
 
 interface DepartamentosManagerProps {
@@ -82,6 +84,12 @@ export function DepartamentosManager({
   const [novoRole, setNovoRole] = useState<'MEMBRO' | 'ADMIN'>('MEMBRO')
   const [showSenha, setShowSenha] = useState(false)
   const [novoErro, setNovoErro] = useState<string | null>(null)
+
+  // Modal de redefinição de senha de um colaborador
+  const [resetAlvo, setResetAlvo] = useState<UsuarioAdminDTO | null>(null)
+  const [resetSenha, setResetSenha] = useState('')
+  const [showResetSenha, setShowResetSenha] = useState(false)
+  const [resetErro, setResetErro] = useState<string | null>(null)
 
   // ----------------------------------------------------
   // Estados para Gestão de Departamentos
@@ -201,18 +209,42 @@ export function DepartamentosManager({
     setShowNovoUsuario(true)
   }
 
-  const gerarSenha = () => {
+  const gerarSenhaValor = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%'
     let s = ''
     for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)]
-    setNovaSenha(s)
+    return s
+  }
+
+  const copiarTexto = (texto: string) => {
+    if (texto) navigator.clipboard?.writeText(texto).catch(() => {})
+  }
+
+  const gerarSenha = () => {
+    setNovaSenha(gerarSenhaValor())
     setShowSenha(true)
   }
 
-  const copiarSenha = () => {
-    if (novaSenha) {
-      navigator.clipboard?.writeText(novaSenha).catch(() => {})
-    }
+  const abrirReset = (user: UsuarioAdminDTO) => {
+    setResetAlvo(user)
+    setResetSenha(gerarSenhaValor())
+    setShowResetSenha(true)
+    setResetErro(null)
+  }
+
+  const handleRedefinirSenha = () => {
+    if (!resetAlvo) return
+    setResetErro(null)
+    startTransition(async () => {
+      const res = await redefinirSenhaUsuario(resetAlvo.id, resetSenha)
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message || 'Senha redefinida.' })
+        setTimeout(() => setFeedback(null), 4000)
+        setResetAlvo(null)
+      } else {
+        setResetErro(res.message || 'Falha ao redefinir a senha.')
+      }
+    })
   }
 
   const handleCriarUsuario = () => {
@@ -585,6 +617,17 @@ export function DepartamentosManager({
                         {/* Ações: Troca de Papel + Desativar/Reativar */}
                         <td className="py-4 px-6 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-2 justify-end">
+                            {user.ativo && (
+                              <button
+                                type="button"
+                                onClick={() => abrirReset(user)}
+                                disabled={isPending}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 border border-zinc-200 dark:border-zinc-700 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-all cursor-pointer disabled:opacity-60"
+                                title="Redefinir senha"
+                              >
+                                <Key className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleRoleChange(user.id, isAdmin ? 'MEMBRO' : 'ADMIN')}
@@ -1047,7 +1090,7 @@ export function DepartamentosManager({
                   {novaSenha && (
                     <button
                       type="button"
-                      onClick={copiarSenha}
+                      onClick={() => copiarTexto(novaSenha)}
                       title="Copiar senha"
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 cursor-pointer"
                     >
@@ -1162,6 +1205,115 @@ export function DepartamentosManager({
               >
                 {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
                 Salvar Setor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de redefinição de senha */}
+      {resetAlvo && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => !isPending && setResetAlvo(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-900 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-zinc-900 dark:text-white">Redefinir senha</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Defina uma nova senha para o colaborador</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetAlvo(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {resetErro && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl px-3 py-2">
+                <AlertCircle className="w-4 h-4 shrink-0" /> {resetErro}
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 p-3">
+              <p className="font-semibold text-sm text-zinc-900 dark:text-white">{resetAlvo.nome}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{resetAlvo.email}</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300 tracking-wide">NOVA SENHA *</label>
+              <div className="relative">
+                <input
+                  type={showResetSenha ? 'text' : 'password'}
+                  value={resetSenha}
+                  onChange={(e) => setResetSenha(e.target.value)}
+                  placeholder="mín. 6 caracteres"
+                  className="w-full pr-16 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetSenha((s) => !s)}
+                    title={showResetSenha ? 'Ocultar' : 'Mostrar'}
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 cursor-pointer"
+                  >
+                    {showResetSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  {resetSenha && (
+                    <button
+                      type="button"
+                      onClick={() => copiarTexto(resetSenha)}
+                      title="Copiar senha"
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetSenha(gerarSenhaValor())
+                    setShowResetSenha(true)
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" /> Gerar senha aleatória
+                </button>
+                <span className="text-[11px] text-zinc-400">Entregue ao colaborador</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setResetAlvo(null)}
+                disabled={isPending}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleRedefinirSenha}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 shadow-md shadow-orange-600/20 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                Redefinir senha
               </button>
             </div>
           </div>

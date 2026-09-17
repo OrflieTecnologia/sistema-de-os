@@ -205,6 +205,10 @@ Sistema corporativo fullstack para abertura, acompanhamento e gerenciamento de O
 - [x] **Removido o `switchQuickAccountAction`** (login em qualquer conta só pelo e-mail, **sem senha**) e o componente órfão `role-switcher.tsx` que o usava (código morto + risco).
 - [x] **Verificado:** cookie forjado (só o ID), assinatura adulterada e ID trocado com assinatura de outro → todos **rejeitados (307)**; cookie assinado válido → **aceito (200)**.
 
+### Fase 23: Gráficos no Dashboard & Redefinição de Senha pelo Admin (Concluída)
+- [x] **Gráficos ligados (`src/app/page.tsx`):** o `ChartsSection` (recharts), que já existia mas não era renderizado, agora aparece entre as métricas e a lista nas views operacionais (Minhas OS / Painel do Setor) — barras de **demandas por setor de destino** e **volume por prioridade**, com estado vazio e legendas. Compatível com o CSP (recharts é bundle próprio + estilos inline já liberados).
+- [x] **Redefinir senha (`redefinirSenhaUsuario` + RBAC):** botão de chave 🔑 em cada usuário ativo abre um **modal** com o alvo, campo de nova senha (gerar aleatória / mostrar / copiar) — action só ADMIN, valida mín. 6, faz `bcrypt.hash`. Fecha o buraco de "esqueci a senha" (antes só dava pra trocar logado). Verificado: nova senha passa a valer e a antiga é invalidada.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

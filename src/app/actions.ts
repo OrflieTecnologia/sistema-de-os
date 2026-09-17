@@ -907,6 +907,31 @@ export async function criarUsuario(dados: {
   }
 }
 
+export async function redefinirSenhaUsuario(
+  usuarioId: string,
+  novaSenha: string
+): Promise<ActionResult> {
+  try {
+    await requireAdmin()
+    if (!usuarioId) return { success: false, message: 'Usuário não informado.' }
+    const senha = novaSenha?.trim()
+    if (!senha || senha.length < 6) {
+      return { success: false, message: 'A nova senha deve ter no mínimo 6 caracteres.' }
+    }
+    const u = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { nome: true } })
+    if (!u) return { success: false, message: 'Usuário não encontrado.' }
+
+    const senhaHash = await bcrypt.hash(senha, 10)
+    await prisma.usuario.update({ where: { id: usuarioId }, data: { senha: senhaHash } })
+
+    revalidatePath('/departamentos')
+    return { success: true, message: `Senha de ${u.nome} redefinida com sucesso.` }
+  } catch (error) {
+    console.error('Erro ao redefinir senha:', error)
+    return { success: false, message: 'Falha ao redefinir a senha.' }
+  }
+}
+
 // ----------------------------------------------------
 // NOTIFICAÇÕES
 // ----------------------------------------------------

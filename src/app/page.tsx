@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { Navbar } from '@/components/Navbar'
 import { Header } from '@/components/dashboard/header'
 import { MetricsCards } from '@/components/dashboard/metrics-cards'
+import { ChartsSection } from '@/components/dashboard/charts-section'
 import { OsListContainer } from '@/components/dashboard/os-list-container'
 import { RelatorioProdutividade } from '@/components/dashboard/relatorio-produtividade'
 import { AutoRefresh } from '@/components/auto-refresh'
@@ -76,6 +77,9 @@ export default async function Home({ searchParams }: HomePageProps) {
               role={currentUser.role}
               userName={currentUser.nome}
             />
+
+            {/* Gráficos: demandas por setor e por prioridade */}
+            <ChartsSection ordens={ordens} departamentos={departamentos} />
 
             {/* Listagem Interativa de Chamados */}
             <OsListContainer
